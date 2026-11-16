@@ -26,6 +26,7 @@ coverage
 
 # Claude Code personal settings
 .claude/settings.local.json
+.claude/launch.json
 
 # Temporary local artifacts
 .tmp/
