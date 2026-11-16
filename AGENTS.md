@@ -13,7 +13,7 @@ The v1 design lives in [docs/specs/2026-11-16-astir-v1.md](docs/specs/2026-11-16
 
 ## Status
 
-The empty foundation is in place (#1): the Worker, the React shell, D1 wiring, CI and the deploy. Work goes through issues [#1 to #15](https://github.com/jmusick/astir/issues) in build order. Each issue lists the issues it depends on and has a "Done when" checklist taken from the spec.
+The foundation (#1) and web account flow (#2) are implemented: sign-up, email verification, sign-in, recovery and revocable browser sessions. The daily list is not built yet. Work goes through issues [#1 to #15](https://github.com/jmusick/astir/issues) in build order. Each issue lists the issues it depends on and has a "Done when" checklist taken from the spec.
 
 ## Layout
 
@@ -21,6 +21,7 @@ One npm package at the root, no workspaces. The layout follows the Cloudflare Vi
 
 - `src/`: the shared React UI. The TypeScript sync engine goes in `src/sync/` when it lands.
 - `worker/`: the Cloudflare Worker. `index.ts` is a single-file dispatcher (as in Tagstash), `headers.ts` sets the API's security headers, `no-store` and the CORS allowlist.
+- `worker/auth.ts`: web auth handlers and helpers adapted from Tagstash. Optional secret types live in `worker/env.d.ts`; generated bindings still come from Wrangler.
 - `public/_headers`: CSP, HSTS and friends for static assets only. Worker responses never get these.
 - `migrations/`: D1 migrations for `astir-db`.
 - `src-tauri/`: placeholder for the Tauri app (#11).
@@ -34,6 +35,11 @@ One npm package at the root, no workspaces. The layout follows the Cloudflare Vi
 - **Adding a third-party script (Turnstile, analytics) means updating the CSP** in `public/_headers`. Vite's dev server doesn't apply `_headers`, so check CSP problems with `npm run preview`.
 - **npm only installs versions at least 7 days old** (`.npmrc` `min-release-age`). `npm install pkg@latest` fails for a fresh release; pick an older one. A dependency with an install script must be reviewed into `allowScripts` in `package.json`.
 - **TypeScript stays on 6.x** until typescript-eslint supports 7.
+- **Email work uses Worker `waitUntil`**, keeping known and unknown addresses' responses alike. With no context (tests), it awaits inline. A failed send removes its token but keeps the account for a resend. Never log provider messages, addresses or tokens.
+- **Auth writes need `X-Astir-Client: web` and a trusted `Origin`.** Browser JWTs are cookie-only and always checked against `browser_sessions` plus `users.token_version`. Logout revokes the row; reset bumps the version and revokes all browser sessions. Keep this check when adding protected routes.
+- **Email-token redemption is a D1 transaction.** A conditional user update wins the claim, `changes()` gates token consumption, and a unique `claim_id` gates reset side effects. Don't chain `changes()` through optional rows or use a timestamp as the claim identity: concurrent requests can share a millisecond.
+- **Auth tests use Node's built-in SQLite** to execute the real migration and transactional SQL. No extra SQLite package or Worker runtime is needed. Missing migrations fail auth closed; apply local migrations before testing the forms.
+- **Turnstile's public test secrets omit the action field.** Only on HTTP loopback with a public dummy secret do we skip action validation. A real secret always checks the action; HTTPS always refuses dummy secrets and checks hostname as well.
 
 ## Rules that shape the code
 

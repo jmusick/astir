@@ -4,6 +4,10 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Create an account on the web, verify your email address, sign in and sign out. Forgotten passwords can be reset by email; resetting your password signs out existing browser sessions.
+
 ## [0.1.0] - 2026-11-16
 
 ### Added

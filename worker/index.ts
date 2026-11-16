@@ -2,6 +2,7 @@
 // wrangler.jsonc sends every /api/* request here. Routing is a single-file dispatcher, as in
 // Tagstash: match the method and path, call a handler.
 import { withApiHeaders } from './headers';
+import { handleAuth } from './auth';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -22,7 +23,7 @@ const databaseStatus = async (db: D1Database | undefined): Promise<DatabaseStatu
   }
 };
 
-async function routeRequest(request: Request, env: Env): Promise<Response> {
+async function routeRequest(request: Request, env: Env, context?: Pick<ExecutionContext, 'waitUntil'>): Promise<Response> {
   try {
     const { pathname } = new URL(request.url);
 
@@ -40,6 +41,8 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
 
     if (!env.DB) return json({ error: 'D1 binding DB is not configured' }, 500);
 
+    if (pathname.startsWith('/api/auth/')) return handleAuth(request, env, context);
+
     return json({ error: 'Route not found' }, 404);
   } catch (error) {
     console.error('API handler error:', error);
@@ -48,7 +51,7 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
 }
 
 export default {
-  async fetch(request, env) {
-    return withApiHeaders(await routeRequest(request, env), request, env);
+  async fetch(request: Request, env: Env, context?: Pick<ExecutionContext, 'waitUntil'>) {
+    return withApiHeaders(await routeRequest(request, env, context), request, env);
   },
 } satisfies ExportedHandler<Env>;

@@ -33,6 +33,8 @@
     "db:migrate:remote": "wrangler d1 migrations apply astir-db --remote"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.15",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

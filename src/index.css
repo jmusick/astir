@@ -30,3 +30,25 @@ main {
 .status {
   color: var(--muted);
 }
+
+* { box-sizing: border-box; }
+main { max-width: 32rem; }
+.brand { font-size: 1.6rem; font-weight: 800; text-decoration: none; color: var(--text); letter-spacing: -.06em; }
+.brand-dot { color: #8864e8; font-size: 1rem; margin-left: .3rem; }
+.intro, .hint { color: var(--muted); }
+.account { margin-top: 2.5rem; }
+h1 { font-size: 2rem; line-height: 1.2; letter-spacing: -.035em; margin-bottom: 1.5rem; }
+form { display: grid; gap: 1rem; }
+label { display: grid; gap: .35rem; font-weight: 600; }
+input { width: 100%; font: inherit; background: var(--bg); color: var(--text); padding: .75rem; border: 1px solid var(--muted); border-radius: .5rem; }
+button { font: inherit; font-weight: 700; padding: .8rem 1rem; background: #6841be; color: #fff; border: 0; border-radius: .5rem; cursor: pointer; }
+button:disabled { opacity: .6; cursor: default; }
+nav { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; margin-top: 1.75rem; font-size: .9rem; }
+a { color: #6841be; text-underline-offset: .2em; }
+.hint { font-size: .875rem; margin: -.5rem 0 0; }
+.notice { padding: 1rem; border-left: 3px solid #8864e8; background: color-mix(in srgb, #8864e8 10%, var(--bg)); overflow-wrap: anywhere; }
+.error { border-color: #d04444; }
+.challenge { min-width: 0; }
+:focus-visible { outline: 3px solid #8864e8; outline-offset: 3px; }
+@media (prefers-color-scheme: dark) { a { color: #c0a6ff; } }
+@media (max-width: 400px) { main { padding-top: 2rem; } }
