@@ -16,6 +16,10 @@ updates:
     cooldown:
       default-days: 7
       semver-major-days: 14
+    ignore:
+      # typescript-eslint 8.x supports TypeScript below 6.1 only. Remove this once it supports 7.
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
     groups:
       # The Workers toolchain and its Vite plugin move together and are tested together.
       cloudflare:
