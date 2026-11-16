@@ -13,7 +13,27 @@ The v1 design lives in [docs/specs/2026-11-16-astir-v1.md](docs/specs/2026-11-16
 
 ## Status
 
-Not built yet. Work goes through issues [#1 to #15](https://github.com/jmusick/astir/issues) in build order. Each issue lists the issues it depends on and has a "Done when" checklist taken from the spec.
+The empty foundation is in place (#1): the Worker, the React shell, D1 wiring, CI and the deploy. Work goes through issues [#1 to #15](https://github.com/jmusick/astir/issues) in build order. Each issue lists the issues it depends on and has a "Done when" checklist taken from the spec.
+
+## Layout
+
+One npm package at the root, no workspaces. The layout follows the Cloudflare Vite plugin's and Tauri's defaults so their docs apply as written.
+
+- `src/`: the shared React UI. The TypeScript sync engine goes in `src/sync/` when it lands.
+- `worker/`: the Cloudflare Worker. `index.ts` is a single-file dispatcher (as in Tagstash), `headers.ts` sets the API's security headers, `no-store` and the CORS allowlist.
+- `public/_headers`: CSP, HSTS and friends for static assets only. Worker responses never get these.
+- `migrations/`: D1 migrations for `astir-db`.
+- `src-tauri/`: placeholder for the Tauri app (#11).
+- `tests/`: Vitest. Worker tests call the fetch handler directly with a stub env; no Worker runtime needed.
+- `wrangler.jsonc`: the Worker, its D1 binding and the custom domain. `npm run cf:types` regenerates `worker-configuration.d.ts` (gitignored) from it, and `npm run typecheck` does that first.
+
+## Gotchas
+
+- **`GET /api/health` must stay ahead of the `env.DB` check** in `worker/index.ts`, so it answers without D1. It reports the database as `ok`, `not configured` or `error` but always returns 200.
+- **`/api` and `/api/*` run the Worker first** (`run_worker_first` in `wrangler.jsonc`). Without it, a browser navigating to an API path would get the React shell from the SPA fallback.
+- **Adding a third-party script (Turnstile, analytics) means updating the CSP** in `public/_headers`. Vite's dev server doesn't apply `_headers`, so check CSP problems with `npm run preview`.
+- **npm only installs versions at least 7 days old** (`.npmrc` `min-release-age`). `npm install pkg@latest` fails for a fresh release; pick an older one. A dependency with an install script must be reviewed into `allowScripts` in `package.json`.
+- **TypeScript stays on 6.x** until typescript-eslint supports 7.
 
 ## Rules that shape the code
 

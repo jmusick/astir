@@ -1,0 +1,32 @@
+// Cloudflare Worker with static assets and D1 (spec D23). The Cloudflare Vite plugin reads this file
+// for `npm run dev` and `npm run build`, and writes the deploy config that `wrangler deploy` uses.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "astir",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  // Served only at the custom domain (D25), not at a workers.dev address or preview URLs.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "astir.stonedragonmedia.com", "custom_domain": true }],
+  "assets": {
+    // Unknown page paths get the React shell; /api and /api/* always reach the Worker, even when the
+    // browser navigates to it.
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "astir-db",
+      "database_id": "431ba61b-f8e0-44ce-a176-61177bba98d4",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "APP_URL": "https://astir.stonedragonmedia.com"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

@@ -8,7 +8,7 @@ This README owns what Astir is and how to set it up and use it. [AGENTS.md](AGEN
 
 ## Status
 
-Not built yet. The v1 design is settled in the [spec](docs/specs/2026-11-16-astir-v1.md) and split into [issues #1 to #15](https://github.com/jmusick/astir/issues) in build order.
+Early. The repo, the Worker and the deploy are set up, but there's no app yet. The v1 design is settled in the [spec](docs/specs/2026-11-16-astir-v1.md) and split into [issues #1 to #15](https://github.com/jmusick/astir/issues) in build order.
 
 ## Planned for v1
 
@@ -30,8 +30,29 @@ Not built yet. The v1 design is settled in the [spec](docs/specs/2026-11-16-asti
 
 ## Setup
 
-Setup instructions arrive with [#1](https://github.com/jmusick/astir/issues/1).
+You need Node 22.13 or newer (CI uses the version in `.nvmrc`) and npm 11.19 or newer, which honors the install safeguards in `.npmrc`.
+
+```bash
+npm install
+npm run db:migrate:local
+npm run dev
+```
+
+`npm run dev` serves the React UI and the Worker together from Vite at http://localhost:5173, against a local D1 database kept in `.wrangler/state`. `GET /api/health` reports whether the API and the database answer.
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Web UI and Worker together, with local D1 |
+| `npm run typecheck` | Generates the Worker's types (`worker-configuration.d.ts`) and type-checks everything |
+| `npm run lint` | ESLint |
+| `npm test` | Vitest |
+| `npm run build` | Type check, then build the Worker and the static assets into `dist/` |
+| `npm run preview` | Build, then serve the production build locally |
+| `npm run db:migrate:local` / `db:migrate:remote` | Apply D1 migrations locally or to production |
+| `npm run deploy` | Build and deploy to astir.stonedragonmedia.com (needs `wrangler login`) |
+
+CI runs the shared [jmusick/ci](https://github.com/jmusick/ci) checks on every push and pull request. Deploys are run by hand with `npm run deploy` for now.
 
 ## License
 
-Astir's code will use the Tagstash non-commercial license, adapted for Astir, copyright Stone Dragon Media LLC. It gets added in [#1](https://github.com/jmusick/astir/issues/1). Until then, all rights are reserved.
+Astir's code is under the [Astir Non-Commercial License](LICENSE.md), adapted from Tagstash's, copyright Stone Dragon Media LLC. Personal and non-commercial use is free. Commercial use needs written permission.
