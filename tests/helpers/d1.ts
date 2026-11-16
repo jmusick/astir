@@ -1,13 +1,16 @@
 /// <reference types="node" />
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { URL as NodeURL } from 'node:url';
 
 // Run the real migration and SQL, with D1's transactional batch semantics.
 export function testDatabase() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec('PRAGMA foreign_keys = ON');
-  sqlite.exec(readFileSync(new NodeURL('../../migrations/0001_accounts.sql', import.meta.url), 'utf8'));
+  const migrations = new NodeURL('../../migrations/', import.meta.url);
+  for (const file of readdirSync(migrations).filter((name) => name.endsWith('.sql')).sort()) {
+    sqlite.exec(readFileSync(new NodeURL(file, migrations), 'utf8'));
+  }
   class Statement {
     values: (string | number | null)[] = [];
     constructor(readonly sql: string) {}

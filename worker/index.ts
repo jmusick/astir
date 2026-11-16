@@ -3,6 +3,7 @@
 // Tagstash: match the method and path, call a handler.
 import { withApiHeaders } from './headers';
 import { handleAuth } from './auth';
+import { handleSync } from './sync';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -42,6 +43,7 @@ async function routeRequest(request: Request, env: Env, context?: Pick<Execution
     if (!env.DB) return json({ error: 'D1 binding DB is not configured' }, 500);
 
     if (pathname.startsWith('/api/auth/')) return handleAuth(request, env, context);
+    if (pathname === '/api/sync' || pathname.startsWith('/api/sync/')) return handleSync(request, env);
 
     return json({ error: 'Route not found' }, 404);
   } catch (error) {

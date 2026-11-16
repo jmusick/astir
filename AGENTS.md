@@ -13,7 +13,7 @@ The v1 design lives in [docs/specs/2026-11-16-astir-v1.md](docs/specs/2026-11-16
 
 ## Status
 
-The foundation (#1) and web account flow (#2) are implemented: sign-up, email verification, sign-in, recovery and revocable browser sessions. The daily list is not built yet. Work goes through issues [#1 to #15](https://github.com/jmusick/astir/issues) in build order. Each issue lists the issues it depends on and has a "Done when" checklist taken from the spec.
+The foundation (#1), web account flow (#2) and server sync API (#3) are implemented. The client sync engine and daily list UI are not built yet. Work goes through issues [#1 to #15](https://github.com/jmusick/astir/issues) in build order. Each issue lists the issues it depends on and has a "Done when" checklist taken from the spec.
 
 ## Layout
 
@@ -22,6 +22,7 @@ One npm package at the root, no workspaces. The layout follows the Cloudflare Vi
 - `src/`: the shared React UI. The TypeScript sync engine goes in `src/sync/` when it lands.
 - `worker/`: the Cloudflare Worker. `index.ts` is a single-file dispatcher (as in Tagstash), `headers.ts` sets the API's security headers, `no-store` and the CORS allowlist.
 - `worker/auth.ts`: web auth handlers and helpers adapted from Tagstash. Optional secret types live in `worker/env.d.ts`; generated bindings still come from Wrangler.
+- `worker/sync.ts`: validates sync pushes and serves revision-cursor pulls. [docs/sync-api.md](docs/sync-api.md) owns the wire contract. `0002_sync.sql` stores all entities in `sync_records`, with per-entity views, reference/revision triggers and a final-state quota check.
 - `public/_headers`: CSP, HSTS and friends for static assets only. Worker responses never get these.
 - `migrations/`: D1 migrations for `astir-db`.
 - `src-tauri/`: placeholder for the Tauri app (#11).
@@ -40,6 +41,8 @@ One npm package at the root, no workspaces. The layout follows the Cloudflare Vi
 - **Email-token redemption is a D1 transaction.** A conditional user update wins the claim, `changes()` gates token consumption, and a unique `claim_id` gates reset side effects. Don't chain `changes()` through optional rows or use a timestamp as the claim identity: concurrent requests can share a millisecond.
 - **Auth tests use Node's built-in SQLite** to execute the real migration and transactional SQL. No extra SQLite package or Worker runtime is needed. Missing migrations fail auth closed; apply local migrations before testing the forms.
 - **Turnstile's public test secrets omit the action field.** Only on HTTP loopback with a public dummy secret do we skip action validation. A real secret always checks the action; HTTPS always refuses dummy secrets and checks hostname as well.
+- **Sync pushes are D1 transactions.** Keep the `json_each` upsert and final quota-check insert in one `DB.batch`. Only winning changes allocate a server revision. Pull cursors use those revisions, never client timestamps, and pushes never advance a pull cursor.
+- **Sync tombstones are permanent and keep archive data.** A delete arriving before creation can receive its missing metadata later, while remaining deleted. Item kind, parent, list and original/creation day are immutable. Completions and schedules use semantic client IDs; see the API contract before building the client.
 
 ## Rules that shape the code
 

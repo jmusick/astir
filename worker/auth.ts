@@ -172,7 +172,7 @@ async function background(context: Background, task: () => Promise<void>) {
   if (context) context.waitUntil(work);
   else await work;
 }
-async function currentSession(request: Request, env: Env) {
+export async function currentSession(request: Request, env: Env) {
   const key = signingKey(env);
   const token = getCookie(request);
   if (!token) return null;

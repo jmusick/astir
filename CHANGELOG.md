@@ -4,6 +4,10 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- An authenticated sync API stores lists, tasks, recurring schedules and completion history, resolves offline conflicts and keeps deleted records for sync. The daily list interface and client sync are still being built.
+
 ## [0.2.0] - 2026-11-16
 
 ### Added
