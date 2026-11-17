@@ -4,6 +4,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-17
+
 ### Added
 
 - A Settings page, linked at the top of every screen. Change your time zone and when your day resets there; the change starts at your next reset. See every browser you're signed in on, with when each was last used, and sign any of them out. Download everything as a JSON file: every list, task, habit, checkmark and day of history. You can also delete your account. That takes your password, happens right away and removes everything. Your other devices clear their copy the next time they connect and tell you why.
@@ -69,7 +71,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 - Astir has a home at [astir.stonedragonmedia.com](https://astir.stonedragonmedia.com). There's nothing to use yet: the page is a placeholder while the daily list is built.
 - Astir's code is available under the Astir Non-Commercial License: free for personal and non-commercial use.
 
-[Unreleased]: https://github.com/jmusick/astir/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/jmusick/astir/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/jmusick/astir/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/jmusick/astir/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/jmusick/astir/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/jmusick/astir/compare/v0.6.0...v0.7.0

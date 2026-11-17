@@ -1,6 +1,6 @@
 [package]
 name = "astir"
-version = "0.9.0"
+version = "0.10.0"
 description = "A daily to-do list that resets every day"
 authors = ["Stone Dragon Media"]
 license-file = "../LICENSE.md"
