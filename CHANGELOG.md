@@ -4,6 +4,12 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-16
+
+### Added
+
+- Your day now resets at the hour you choose, in your account’s time zone, on every device and offline too. Habits come back unchecked each day with past checkmarks kept, and unfinished today-only tasks roll into the new day tagged “2nd day”, “3rd day” and so on. Today shows when it resets and rolls over on its own without a reload. You can change the reset hour or time zone from Today; a change starts at the next reset, so today stays as it is. If your device is in a different time zone from your account, Today offers to switch, and it warns you when your device clock is noticeably off.
+
 ## [0.4.0] - 2026-11-16
 
 ### Added
