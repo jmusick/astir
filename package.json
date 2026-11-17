@@ -1,7 +1,7 @@
 {
   "name": "astir",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "A daily to-do list that resets every day, on the web and Windows",
   "license": "SEE LICENSE IN LICENSE.md",
