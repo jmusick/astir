@@ -8,6 +8,13 @@
     "deep-link:default",
     "sql:default",
     "sql:allow-execute",
+    "core:window:allow-set-overlay-icon",
+    "core:window:allow-set-badge-count",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

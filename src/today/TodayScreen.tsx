@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { authApi } from '../authApi';
 import type { Account } from '../authApi';
 import { forgetAccount } from '../rememberedAccount';
@@ -11,6 +11,8 @@ import ListsNav from '../lists/ListsNav';
 import HistoryScreen from '../history/HistoryScreen';
 import { listHref, settingsHref, todayHref, useRoute } from '../route';
 import SettingsScreen from '../settings/SettingsScreen';
+import { StartAtLoginOffer } from '../platform/StartAtLogin';
+import { useNativeShell } from '../platform/useNativeShell';
 import { exportNow } from '../settings/accountData';
 import { FocusItem } from '../reminders/focusItem';
 import type { FocusRequest } from '../reminders/focusItem';
@@ -73,6 +75,12 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
     const timer = setTimeout(() => setFocus(null), 1_000);
     return () => clearTimeout(timer);
   }, [focus]);
+  // The tray's Quick add opens Today with the today-only box ready.
+  const quickAdd = useCallback(() => {
+    window.location.hash = todayHref;
+    setTimeout(() => document.querySelector<HTMLInputElement>('input[aria-label="New task for today"]')?.focus(), 50);
+  }, []);
+  useNativeShell(engine, view ? view.total - view.done : null, quickAdd);
   const permission = useNotificationPermission();
   const [skipPrompt, setSkipPrompt] = useState(false);
   const hasReminders = useMemo(() => {
@@ -140,6 +148,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
     </header>
     {error && <p className="notice error" role="alert">{error}</p>}
     {!view || !engine ? <p role="status" className="intro">Opening your day…</p> : <FocusItem value={focus}>
+      <StartAtLoginOffer />
       {hasReminders && permission === 'default' && !skipPrompt && <div className="notice reminders" role="status">
         <p>Turn on notifications so your reminders pop up while Astir is open in a tab.</p>
         <p>

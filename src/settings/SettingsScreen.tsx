@@ -9,6 +9,7 @@ import DaySettingsForm from './DaySettingsForm';
 import { exportNow, lastActive } from './accountData';
 import { openInBrowser } from '../platform/appSignIn';
 import { isApp, webUrl } from '../platform/platform';
+import { StartAtLoginSetting } from '../platform/StartAtLogin';
 
 const CONFIRM_WORD = 'DELETE';
 
@@ -120,6 +121,8 @@ export default function SettingsScreen({ account, engine, versions, day, save, s
       <DaySettingsForm key={`${upcoming.timeZone} ${upcoming.startHour}`} settings={upcoming}
         onSave={(next) => save(changeDaySettings(versions, next))} />
     </section>
+
+    <StartAtLoginSetting />
 
     <Devices />
 

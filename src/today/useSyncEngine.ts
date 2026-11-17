@@ -3,6 +3,7 @@ import { SyncEngine } from '../sync/engine';
 import type { Snapshot } from '../sync/engine';
 import { apiFetch } from '../platform/api';
 import { openLocalStore } from '../platform/localStore';
+import { isApp } from '../platform/platform';
 import { MemoryStore } from '../sync/store';
 import type { SyncStore } from '../sync/store';
 import { httpTransport } from '../sync/transport';
@@ -43,7 +44,8 @@ export function useSyncEngine(accountId: string) {
 
   useEffect(() => {
     if (!engine) return;
-    const sync = () => { if (document.visibilityState === 'visible') void engine.sync(); };
+    // A browser tab only syncs while it's showing; the app keeps syncing from the tray (D35).
+    const sync = () => { if (isApp || document.visibilityState === 'visible') void engine.sync(); };
     const timer = setInterval(sync, PULL_EVERY_MS);
     window.addEventListener('online', sync);
     document.addEventListener('visibilitychange', sync);
