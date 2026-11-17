@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Placeholder until the real icon (spec open question): Astir's purple with its dot. -->
+  <rect width="1024" height="1024" rx="224" fill="#6841be"/>
+  <circle cx="512" cy="512" r="300" fill="none" stroke="#ffffff" stroke-width="72" stroke-dasharray="1400 600" stroke-linecap="round" transform="rotate(-90 512 512)"/>
+  <circle cx="512" cy="512" r="96" fill="#ffffff"/>
+</svg>

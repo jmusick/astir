@@ -31,7 +31,8 @@ export default function AuthScreen({ notice = '' }: { notice?: string }) {
     try {
       const result = await authApi(mode, { email, password, token: linkToken, turnstileToken });
       setPassword(''); setConfirm('');
-      if (mode === 'login' && result.user) window.location.assign('/');
+      // Signing in to connect the app comes back to that page (D28).
+      if (mode === 'login' && result.user) window.location.assign(window.location.pathname === '/connect-app' ? window.location.pathname + window.location.search : '/');
       else {
         setMessage(result.message || 'Done.');
         if (isLink) setFinished(true);

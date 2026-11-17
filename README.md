@@ -8,7 +8,7 @@ This README owns what Astir is and how to set it up and use it. [AGENTS.md](AGEN
 
 ## Status
 
-Early. Web accounts support sign-up, email verification, sign-in, password reset and sign-out. The server stores lists, items, versioned recurring schedules, completions, reminder dismissals and the account's day settings behind an authenticated [sync API](docs/sync-api.md). The web Today view runs offline-first on the client sync engine, loads with no connection after the first visit, resets at your day-start hour and rolls unfinished tasks over. Named lists hold tasks with notes, due dates and subtasks, and tasks that are due show in Today. History shows what you did on any past day. Reminders pop up as notifications while a tab is open. Settings and the native apps are still being built. The v1 design is settled in the [spec](docs/specs/2026-11-16-astir-v1.md) and split into [issues #1 to #15](https://github.com/jmusick/astir/issues) in build order.
+Early. Web accounts support sign-up, email verification, sign-in, password reset and sign-out. The server stores lists, items, versioned recurring schedules, completions, reminder dismissals and the account's day settings behind an authenticated [sync API](docs/sync-api.md). The web Today view runs offline-first on the client sync engine, loads with no connection after the first visit, resets at your day-start hour and rolls unfinished tasks over. Named lists hold tasks with notes, due dates and subtasks, and tasks that are due show in Today. History shows what you did on any past day. Reminders pop up as notifications while a tab is open. Settings manages the day boundary, signed-in devices, a JSON export and account deletion. A Windows app (Tauri 2) runs the same UI offline over SQLite and signs in through the browser; its tray, hotkey, native reminders and installer are still being built. The v1 design is settled in the [spec](docs/specs/2026-11-16-astir-v1.md) and split into [issues #1 to #15](https://github.com/jmusick/astir/issues) in build order.
 
 ## Planned for v1
 
@@ -79,6 +79,14 @@ New passwords need at least eight characters and at most 72 UTF-8 bytes. Like Ta
 | `npm run preview` | Build, then serve the production build locally |
 | `npm run db:migrate:local` / `db:migrate:remote` | Apply D1 migrations locally or to production |
 | `npm run deploy` | Build and deploy to astir.stonedragonmedia.com (needs `wrangler login`) |
+| `npm run app:dev` | The Windows app against `npm run dev` (Tauri; starts the dev server itself) |
+| `npm run app:build` | Build the Windows app and its installer into `src-tauri/target/release` |
+
+### The Windows app
+
+The app needs [Rust](https://rustup.rs) (stable, MSVC) and the Visual Studio C++ build tools; Windows 10 and 11 already have WebView2. If more than one Visual Studio is installed and the newest lacks the x64 C++ libraries (the link fails on `msvcrt.lib`), run the app commands from "x64 Native Tools Command Prompt for VS 2022", or after its `vcvars64.bat`.
+
+`npm run app:dev` loads the UI from the Vite dev server, so a development app talks to your local Worker and D1. A built app talks to astir.stonedragonmedia.com (override with `VITE_ASTIR_ORIGIN` at build time). It has no password form: **Sign in with your browser** opens `/connect-app` with a PKCE challenge, the signed-in page asks for a one-time code (five minutes, single use) and opens `astir://auth?code=…`, and the app redeems it with its verifier for a long-lived device token. Device tokens are listed in Settings with the browsers, can be revoked there, and end on a password reset. Data lives in one SQLite file per account in the app's data folder; signing out empties it. A development build registers `astir://` when it starts; installers register it themselves.
 
 CI runs the shared [jmusick/ci](https://github.com/jmusick/ci) checks on every push and pull request. Deploys are run by hand with `npm run deploy` for now.
 

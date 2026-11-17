@@ -8,6 +8,14 @@ const LOCK_MS = 15 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ISSUER = 'astir';
 const AUDIENCE = 'astir-api';
+// Device tokens for the native apps (D28) are JWTs too, for a different audience, so a browser
+// cookie can never be replayed as a device token or the other way round.
+const APP_AUDIENCE = 'astir-app';
+const HANDOFF_MS = 5 * 60_000;
+const DEVICE_SEEN_MS = 60_000;
+const HANDOFF_FAILED = 'This sign-in has expired or was already used. Start again from the app.';
+// The only routes a native app may call; everything else (sign-up, passwords, deletion) is web-only.
+const APP_ROUTES = new Set(['GET /api/auth/me', 'GET /api/auth/devices', 'POST /api/auth/devices/revoke', 'POST /api/auth/logout', 'POST /api/auth/app-token']);
 // A real cost-10 hash gives unknown addresses the same bcrypt work as known accounts.
 const DUMMY_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
 const ACCEPTED = { message: 'Check your email for the next step. If you already have an account, sign in or reset your password.' };
@@ -20,6 +28,15 @@ class AuthError extends Error {
 type User = { id: string; email: string; password_hash: string; email_verified: number; token_version: number };
 type EmailToken = { token_hash: string; user_id: string; purpose: 'verify' | 'reset'; expires_at: number; used_at: number | null };
 type Background = Pick<ExecutionContext, 'waitUntil'> | undefined;
+/** A signed-in browser (cookie) or native app (device token). session_id is that row's id. */
+export type Session = { id: string; email: string; session_id: string; kind: 'browser' | 'app' };
+
+/** Native apps say so and authenticate with a bearer device token; browsers use the cookie. */
+export const isAppRequest = (request: Request) => request.headers.get('X-Astir-Client') === 'app';
+const bearer = (request: Request) => {
+  const value = request.headers.get('Authorization');
+  return value?.startsWith('Bearer ') ? value.slice(7).trim() || undefined : undefined;
+};
 
 const localRequest = (request: Request) => {
   const url = new URL(request.url);
@@ -98,6 +115,9 @@ async function turnstile(request: Request, env: Env, token: unknown, action: str
 }
 const hex = (bytes: ArrayBuffer | Uint8Array) => Array.from(new Uint8Array(bytes)).map((v) => v.toString(16).padStart(2, '0')).join('');
 const hash = async (value: string) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
+const base64url = (bytes: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+/** The PKCE S256 challenge for a verifier. */
+export const challengeFor = async (verifier: string) => base64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
 async function validatePassword(value: unknown, breachCheck = false): Promise<string> {
   if (typeof value !== 'string') throw new AuthError('Enter a password.', 400);
   const error = newPasswordError(value);
@@ -172,7 +192,30 @@ async function background(context: Background, task: () => Promise<void>) {
   if (context) context.waitUntil(work);
   else await work;
 }
-export async function currentSession(request: Request, env: Env) {
+export async function currentSession(request: Request, env: Env): Promise<Session | null> {
+  return isAppRequest(request) ? deviceSession(request, env) : browserSession(request, env);
+}
+
+async function deviceSession(request: Request, env: Env): Promise<Session | null> {
+  const key = signingKey(env);
+  const token = bearer(request);
+  if (!token) return null;
+  let claims;
+  try {
+    claims = (await jwtVerify(token, key, { algorithms: ['HS256'], issuer: ISSUER, audience: APP_AUDIENCE, requiredClaims: ['iat', 'sub', 'did', 'tv'] })).payload;
+  } catch { return null; }
+  if (typeof claims.sub !== 'string' || typeof claims.did !== 'string' || !Number.isInteger(claims.tv)) return null;
+  const row = await env.DB.prepare(`SELECT u.id, u.email, d.id AS session_id, d.last_active_at FROM users u JOIN device_tokens d ON d.user_id = u.id
+    WHERE u.id = ? AND d.id = ? AND u.token_version = ? AND d.token_version = u.token_version AND u.email_verified = 1 AND d.revoked_at IS NULL`)
+    .bind(claims.sub, claims.did, claims.tv).first<{ id: string; email: string; session_id: string; last_active_at: number }>();
+  if (!row) return null;
+  // Apps sync every minute or so; one write a minute is plenty for "last activity".
+  const now = Date.now();
+  if (now - row.last_active_at > DEVICE_SEEN_MS) await env.DB.prepare('UPDATE device_tokens SET last_active_at = ? WHERE id = ?').bind(now, row.session_id).run();
+  return { id: row.id, email: row.email, session_id: row.session_id, kind: 'app' };
+}
+
+async function browserSession(request: Request, env: Env): Promise<Session | null> {
   const key = signingKey(env);
   const token = getCookie(request);
   if (!token) return null;
@@ -190,7 +233,7 @@ export async function currentSession(request: Request, env: Env) {
     .bind(claims.sub, claims.sid, claims.tv, Date.now()).first<{ id: string; email: string; session_id: string }>();
   if (!row) return null;
   await env.DB.prepare('UPDATE browser_sessions SET last_active_at = ? WHERE id = ?').bind(Date.now(), row.session_id).run();
-  return row;
+  return { ...row, kind: 'browser' };
 }
 
 /**
@@ -199,10 +242,11 @@ export async function currentSession(request: Request, env: Env) {
  * account's other devices can clear their local copy (D29). Expiry is ignored for this check.
  */
 export async function signedOutReason(request: Request, env: Env): Promise<'account-deleted' | undefined> {
-  const token = getCookie(request);
+  const app = isAppRequest(request);
+  const token = app ? bearer(request) : getCookie(request);
   if (!token) return undefined;
   try {
-    const { payload } = await jwtVerify(token, signingKey(env), { algorithms: ['HS256'], issuer: ISSUER, audience: AUDIENCE, clockTolerance: '3650d' });
+    const { payload } = await jwtVerify(token, signingKey(env), { algorithms: ['HS256'], issuer: ISSUER, audience: app ? APP_AUDIENCE : AUDIENCE, clockTolerance: '3650d' });
     if (typeof payload.sub !== 'string') return undefined;
     const user = await env.DB.prepare('SELECT 1 AS n FROM users WHERE id = ?').bind(payload.sub).first();
     return user ? undefined : 'account-deleted';
@@ -219,13 +263,20 @@ export function deviceName(userAgent: string): string {
   return os ? `${browser} on ${os}` : browser;
 }
 export const DELETE_CONFIRMATION = 'DELETE';
+/** The name a native app gives itself, such as "Astir for Windows". */
+const appName = (value: unknown) => typeof value === 'string' && /^[\p{L}\p{N} .'()-]{1,60}$/u.test(value.trim()) ? value.trim() : 'Astir app';
 
 export async function handleAuth(request: Request, env: Env, context?: Pick<ExecutionContext, 'waitUntil'>): Promise<Response> {
   try {
     const path = new URL(request.url).pathname;
     // A custom header forces a preflight; mutations additionally require a trusted origin.
-    if (request.headers.get('X-Astir-Client') !== 'web') throw new AuthError('Use the Astir web client.', 403);
-    if (request.method !== 'GET' && !isAllowedOrigin(request.headers.get('Origin'), request, env)) throw new AuthError('Untrusted request origin.', 403);
+    if (isAppRequest(request)) {
+      // Bearer tokens aren't sent by browsers on their own, so no origin check; the route list is the limit.
+      if (!APP_ROUTES.has(`${request.method} ${path}`)) throw new AuthError('Use Astir on the web for this.', 403);
+    } else {
+      if (request.headers.get('X-Astir-Client') !== 'web') throw new AuthError('Use the Astir web client.', 403);
+      if (request.method !== 'GET' && !isAllowedOrigin(request.headers.get('Origin'), request, env)) throw new AuthError('Untrusted request origin.', 403);
+    }
     if (request.method === 'GET' && path === '/api/auth/me') {
       const session = await currentSession(request, env);
       return session ? json({ user: { id: session.id, email: session.email } }) : json(await signedOut(request, env), 401, { 'Set-Cookie': cookie(request, '', 0) });
@@ -233,17 +284,20 @@ export async function handleAuth(request: Request, env: Env, context?: Pick<Exec
     if (request.method === 'GET' && path === '/api/auth/devices') {
       const session = await currentSession(request, env);
       if (!session) return json(await signedOut(request, env), 401);
-      const rows = await env.DB.prepare(`SELECT s.id, s.name, s.created_at, s.last_active_at FROM browser_sessions s JOIN users u ON u.id = s.user_id
-        WHERE s.user_id = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND s.token_version = u.token_version ORDER BY s.last_active_at DESC`)
-        .bind(session.id, Date.now()).all<{ id: string; name: string; created_at: number; last_active_at: number }>();
-      return json({ devices: rows.results.map((row) => ({ id: row.id, kind: 'browser', name: deviceName(row.name),
+      type Row = { id: string; kind: 'browser' | 'app'; name: string; created_at: number; last_active_at: number };
+      const rows = await env.DB.prepare(`SELECT s.id, 'browser' AS kind, s.name, s.created_at, s.last_active_at FROM browser_sessions s JOIN users u ON u.id = s.user_id
+          WHERE s.user_id = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND s.token_version = u.token_version
+        UNION ALL SELECT d.id, 'app', d.name, d.created_at, d.last_active_at FROM device_tokens d JOIN users u ON u.id = d.user_id
+          WHERE d.user_id = ? AND d.revoked_at IS NULL AND d.token_version = u.token_version
+        ORDER BY last_active_at DESC`).bind(session.id, Date.now(), session.id).all<Row>();
+      return json({ devices: rows.results.map((row) => ({ id: row.id, kind: row.kind, name: row.kind === 'browser' ? deviceName(row.name) : row.name,
         createdAt: row.created_at, lastActiveAt: row.last_active_at, current: row.id === session.session_id })) });
     }
     if (request.method !== 'POST') return json({ error: 'Route not found' }, 404);
     const db = env.DB;
     if (path === '/api/auth/logout') {
       const session = await currentSession(request, env);
-      if (session) await db.prepare('UPDATE browser_sessions SET revoked_at = ? WHERE id = ?').bind(Date.now(), session.session_id).run();
+      if (session) await db.prepare(`UPDATE ${session.kind === 'app' ? 'device_tokens' : 'browser_sessions'} SET revoked_at = ? WHERE id = ?`).bind(Date.now(), session.session_id).run();
       return json({ message: 'Signed out.' }, 200, { 'Set-Cookie': cookie(request, '', 0) });
     }
     const body = await bodyOf(request);
@@ -251,12 +305,48 @@ export async function handleAuth(request: Request, env: Env, context?: Pick<Exec
       const session = await currentSession(request, env);
       if (!session) return json(await signedOut(request, env), 401);
       if (typeof body.id !== 'string' || body.id.length > 64) throw new AuthError('Choose a device to sign out.', 400);
-      if (body.id === session.session_id) throw new AuthError('Use Sign out to sign out of this browser.', 400);
+      if (body.id === session.session_id) throw new AuthError('Use Sign out to sign out of this device.', 400);
       // Scoped to the caller, so another account's session ids are never revealed or touched.
-      const result = await db.prepare('UPDATE browser_sessions SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL')
-        .bind(Date.now(), body.id, session.id).run();
-      if (!result.meta.changes) throw new AuthError('That device is already signed out.', 404);
+      const now = Date.now();
+      const results = await db.batch(['browser_sessions', 'device_tokens'].map((table) =>
+        db.prepare(`UPDATE ${table} SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`).bind(now, body.id, session.id)));
+      if (!results.some((result) => result.meta.changes)) throw new AuthError('That device is already signed out.', 404);
       return json({ message: 'Signed out of that device.' });
+    }
+    if (path === '/api/auth/app-handoff') {
+      // The signed-in web page makes a one-time code for the app that is waiting with this challenge.
+      const session = await currentSession(request, env);
+      if (!session) return json(await signedOut(request, env), 401);
+      if (typeof body.challenge !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.challenge)) throw new AuthError('This sign-in link is incomplete. Start again from the app.', 400);
+      const code = hex(crypto.getRandomValues(new Uint8Array(32)));
+      const now = Date.now();
+      await db.batch([
+        db.prepare('DELETE FROM app_handoffs WHERE expires_at < ?').bind(now - DAY_MS),
+        db.prepare('INSERT INTO app_handoffs (code_hash, user_id, challenge, name, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .bind(await hash(code), session.id, body.challenge, appName(body.name), now, now + HANDOFF_MS),
+      ]);
+      return json({ code });
+    }
+    if (path === '/api/auth/app-token') {
+      // Redeemed by the app with the verifier only it holds, once, within minutes (D28).
+      const key = signingKey(env);
+      await throttle(db, request, 'app_token', '', 30, false);
+      if (typeof body.code !== 'string' || !/^[a-f0-9]{64}$/.test(body.code)
+        || typeof body.verifier !== 'string' || !/^[A-Za-z0-9_-]{43,128}$/.test(body.verifier)) throw new AuthError(HANDOFF_FAILED, 400);
+      const now = Date.now();
+      const claim = await db.prepare(`UPDATE app_handoffs SET used_at = ? WHERE code_hash = ? AND challenge = ? AND used_at IS NULL AND expires_at > ?
+        RETURNING user_id, name`).bind(now, await hash(body.code), await challengeFor(body.verifier), now).first<{ user_id: string; name: string }>();
+      if (!claim) throw new AuthError(HANDOFF_FAILED, 400);
+      const id = crypto.randomUUID();
+      const user = await db.prepare(`INSERT INTO device_tokens (id, user_id, token_version, name, created_at, last_active_at)
+        SELECT ?, id, token_version, ?, ?, ? FROM users WHERE id = ? AND email_verified = 1 RETURNING token_version`)
+        .bind(id, claim.name, now, now, claim.user_id).first<{ token_version: number }>();
+      const account = await db.prepare('SELECT id, email FROM users WHERE id = ?').bind(claim.user_id).first<{ id: string; email: string }>();
+      if (!user || !account) throw new AuthError(HANDOFF_FAILED, 400);
+      // Long-lived on purpose (D28): revoking the row, or a password reset, is what ends it.
+      const token = await new SignJWT({ did: id, tv: user.token_version }).setProtectedHeader({ alg: 'HS256' })
+        .setSubject(account.id).setIssuer(ISSUER).setAudience(APP_AUDIENCE).setIssuedAt().sign(key);
+      return json({ token, user: account });
     }
     if (path === '/api/auth/delete-account') {
       const session = await currentSession(request, env);

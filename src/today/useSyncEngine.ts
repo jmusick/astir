@@ -1,7 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { SyncEngine } from '../sync/engine';
 import type { Snapshot } from '../sync/engine';
-import { openIndexedDbStore } from '../sync/indexedDbStore';
+import { apiFetch } from '../platform/api';
+import { openLocalStore } from '../platform/localStore';
 import { MemoryStore } from '../sync/store';
 import type { SyncStore } from '../sync/store';
 import { httpTransport } from '../sync/transport';
@@ -23,12 +24,13 @@ export function useSyncEngine(accountId: string) {
       let next: SyncEngine;
       try {
         // Another tab signed out (and wiped this data) or upgraded it: reload to match.
-        store = await openIndexedDbStore(accountId, indexedDB, () => window.location.reload());
-        next = await SyncEngine.open(store, httpTransport());
+        store = await openLocalStore(accountId, () => window.location.reload());
+        next = await SyncEngine.open(store, httpTransport(apiFetch));
       } catch {
         // Some private windows refuse IndexedDB. Keep working in memory; sync still saves the work.
+        // (The app's SQLite store doesn't fail this way short of a broken install.)
         store?.close();
-        next = await SyncEngine.open(new MemoryStore(), httpTransport());
+        next = await SyncEngine.open(new MemoryStore(), httpTransport(apiFetch));
         if (!cancelled) setLocalOnly(true);
       }
       if (cancelled) { next.close(); return; }

@@ -1,3 +1,5 @@
+import { apiFetch } from './platform/api';
+
 export type Account = { id: string; email: string };
 /** A signed-in browser session or (from #11) a native app's device token (D44). */
 export type Device = { id: string; kind: 'browser' | 'app'; name: string; createdAt: number; lastActiveAt: number; current: boolean };
@@ -8,11 +10,17 @@ export class AuthApiError extends Error {
 }
 
 export async function authApi(path: string, body?: Record<string, unknown>, signal?: AbortSignal) {
-  const response = await fetch(`/api/auth/${path}`, {
-    method: body ? 'POST' : 'GET', credentials: 'same-origin',
-    headers: { 'X-Astir-Client': 'web', ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    ...(body ? { body: JSON.stringify(body) } : {}), signal,
-  });
+  let response: Response;
+  try {
+    response = await apiFetch(`/api/auth/${path}`, {
+      method: body ? 'POST' : 'GET',
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      ...(body ? { body: JSON.stringify(body) } : {}), signal,
+    });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    throw new AuthApiError('Astir could not be reached. Check your connection and try again.', 0);
+  }
   const data = await response.json().catch(() => ({})) as {
     error?: string; message?: string; user?: Account; devices?: Device[]; reason?: string;
   };

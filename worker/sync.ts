@@ -1,4 +1,4 @@
-import { currentSession, signedOut } from './auth';
+import { currentSession, isAppRequest, signedOut } from './auth';
 import { isAllowedOrigin } from './headers';
 
 export const SYNC_LIMITS = { lists: 100, openItems: 10_000, subtasks: 100, daySettings: 1_000, title: 500, notes: 20_000, changes: 500, bytes: 1_048_576 } as const;
@@ -147,8 +147,11 @@ async function bodyOf(request: Request): Promise<Record<string, unknown>> {
 
 export async function handleSync(request: Request, env: Env): Promise<Response> {
   try {
-    if (request.headers.get('X-Astir-Client') !== 'web') throw new SyncError('Use the Astir web client.', 403);
-    if (request.method !== 'GET' && !isAllowedOrigin(request.headers.get('Origin'), request, env)) throw new SyncError('Untrusted request origin.', 403);
+    // Native apps authenticate with a bearer device token, which browsers never attach on their own.
+    if (!isAppRequest(request)) {
+      if (request.headers.get('X-Astir-Client') !== 'web') throw new SyncError('Use the Astir web client.', 403);
+      if (request.method !== 'GET' && !isAllowedOrigin(request.headers.get('Origin'), request, env)) throw new SyncError('Untrusted request origin.', 403);
+    }
     const session = await currentSession(request, env);
     if (!session) return json(await signedOut(request, env), 401);
     const url = new URL(request.url);

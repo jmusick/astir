@@ -7,6 +7,8 @@ import type { SyncEngine } from '../sync/engine';
 import type { DayData, SyncRecord } from '../sync/types';
 import DaySettingsForm from './DaySettingsForm';
 import { exportNow, lastActive } from './accountData';
+import { openInBrowser } from '../platform/appSignIn';
+import { isApp, webUrl } from '../platform/platform';
 
 const CONFIRM_WORD = 'DELETE';
 
@@ -54,7 +56,7 @@ function Devices() {
     {devices && <ul className="devices">
       {devices.map((device) => <li key={device.id}>
         <div>
-          <span><strong>{device.name}</strong>{device.current && <span className="this-device"> · This browser</span>}</span>
+          <span><strong>{device.name}</strong>{device.current && <span className="this-device"> · {isApp ? 'This app' : 'This browser'}</span>}</span>
           <span className="hint">{device.current ? 'Active now' : lastActive(device.lastActiveAt)} · signed in {dayLabel(new Date(device.createdAt).toISOString().slice(0, 10))}</span>
         </div>
         {!device.current && <button type="button" className="quiet" disabled={busy === device.id} onClick={() => void revoke(device)}>
@@ -131,10 +133,17 @@ export default function SettingsScreen({ account, engine, versions, day, save, s
 
     <section className="settings-section" aria-labelledby="signout-heading">
       <h2 id="signout-heading">Sign out</h2>
-      <p>Signing out syncs first, then removes this account’s data from this browser.</p>
+      <p>Signing out syncs first, then removes this account’s data from this {isApp ? 'computer' : 'browser'}.</p>
       <p><button type="button" className="quiet" onClick={signOut} disabled={signingOut}>{signingOut ? 'Signing out…' : 'Sign out'}</button></p>
     </section>
 
-    <DeleteAccount onDeleted={onDeleted} />
+    {isApp
+      // The app has no password form of its own (D28), so deletion happens on the web.
+      ? <section className="settings-section danger-zone" aria-labelledby="delete-heading">
+        <h2 id="delete-heading">Delete your account</h2>
+        <p>Deleting your account removes everything in it right away. You can do it from Settings on the web; this app then clears its copy.</p>
+        <p><button type="button" className="quiet" onClick={() => void openInBrowser(webUrl('/#/settings')).catch(() => undefined)}>Open Settings on the web</button></p>
+      </section>
+      : <DeleteAccount onDeleted={onDeleted} />}
   </section>;
 }

@@ -18,7 +18,7 @@ export function httpTransport(fetcher: Fetch = (input, init) => fetch(input, ini
   async function call(path: string, body?: unknown): Promise<Record<string, unknown>> {
     let response: Response;
     try {
-      // Same-origin requests send the session cookie by default.
+      // The UI passes the platform's apiFetch: the web's session cookie, or the app's device token.
       response = await fetcher(`${base}/api/sync/${path}`, {
         method: body === undefined ? 'GET' : 'POST',
         headers: { 'X-Astir-Client': 'web', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
