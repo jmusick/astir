@@ -4,6 +4,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-17
+
 ### Changed
 
 - Astir has a new Signal design: a stepped logo, Archivo lettering, clearer task panels and a layout that fits a narrow desktop window or a wide browser. Choose Signal, Blueprint or Fern for a light theme, or Midnight or Carbon for a dark one, under Settings → Appearance. Your choice is remembered on this device, works offline and also colors the Windows quick-add box.
