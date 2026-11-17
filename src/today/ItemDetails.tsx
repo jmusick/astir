@@ -4,6 +4,7 @@ import { cleanNotes, cleanTitle, edited, NOTES_MAX, removed, renamed, setComplet
 import { wallTime, zonedInstant } from '../sync/day';
 import { newSubtask } from '../sync/lists';
 import { requestNotifications, useNotificationPermission } from '../reminders/permission';
+import { nativeReminders } from '../platform/notifier';
 import type { Entry } from '../sync/records';
 import type { ItemData, SyncRecord } from '../sync/types';
 import ItemRow from './ItemRow';
@@ -79,7 +80,7 @@ export default function ItemDetails({ item, subtasks, day, timeZone, save }: Pro
       </label>
     </div>
     {listTask && <p className="hint">Times are in {timeZone.replaceAll('_', ' ')}.</p>}
-    {data.reminder && <p className="hint">{permission === 'granted' ? 'Reminders pop up while Astir is open in a tab.'
+    {data.reminder && <p className="hint">{permission === 'granted' ? (nativeReminders() ? 'Reminders pop up while Astir is running, even from the tray.' : 'Reminders pop up while Astir is open in a tab.')
       : permission === 'denied' ? 'Notifications are blocked for Astir in this browser, so reminders can’t pop up. Allow them in the site settings.'
       : permission === 'unsupported' ? 'This browser can’t show notifications, so reminders can’t pop up here.'
       : 'Turn on notifications to have reminders pop up while Astir is open in a tab.'}</p>}

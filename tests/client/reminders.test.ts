@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { edited, newHabit, newTodayTask, removed, setCompleted } from '../../src/sync/daily';
 import { firstDaySettings, zonedInstant } from '../../src/sync/day';
 import { newList, newListTask, newSubtask } from '../../src/sync/lists';
-import { dismissed, reminderInstant, remindersDue } from '../../src/sync/reminders';
+import { catchUpFrom, dismissed, reminderInstant, remindersDue } from '../../src/sync/reminders';
 import { keyOf } from '../../src/sync/types';
 import type { DayData, ItemData, SyncRecord } from '../../src/sync/types';
 
@@ -96,5 +96,22 @@ describe('reminders', () => {
     apply(records, edited(item(records, 'wind'), { reminder: '02:00' }));
     // 2 AM Tuesday is still Monday's account day, when the habit is scheduled.
     expect(firing(records, TUESDAY, '02:00', late)).toEqual([`wind:${MONDAY}`]);
+  });
+
+  it('catches up on reminders missed since the last check, but only back to the start of today', () => {
+    const fourAm = versionsFor(4);
+    const now = at('2026-11-17', '18:00');
+    // Last ran at 3 PM: everything since then is still worth a late notice.
+    expect(catchUpFrom(fourAm, at('2026-11-17', '15:00'), now)).toBe(at('2026-11-17', '15:00'));
+    // Last ran yesterday: only today's account day, which began at 4 AM.
+    expect(catchUpFrom(fourAm, at('2026-11-16', '15:00'), now)).toBe(at('2026-11-17', '04:00'));
+    // Never ran, or a clock that went backwards: start now.
+    expect(catchUpFrom(fourAm, null, now)).toBe(now);
+    expect(catchUpFrom(fourAm, now + 60_000, now)).toBe(now);
+    // So a 5:30 PM task missed while closed fires once on the next launch.
+    const records = new Map<string, SyncRecord>();
+    for (const r of newTodayTask('call', 'Call the bank', '2026-11-17', 1)) records.set(keyOf(r), r);
+    for (const r of edited(records.get('item/call') as SyncRecord<ItemData>, { reminder: '17:30' })) records.set(keyOf(r), r);
+    expect(remindersDue(records, fourAm, catchUpFrom(fourAm, at('2026-11-17', '09:00'), now), now).map((r) => r.id)).toEqual(['call:task']);
   });
 });

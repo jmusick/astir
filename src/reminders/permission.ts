@@ -1,3 +1,4 @@
+import { nativeReminders } from '../platform/notifier';
 import { useSyncExternalStore } from 'react';
 
 // The browser's notification permission, shared by every component that shows it. It's asked for
@@ -7,7 +8,8 @@ import { useSyncExternalStore } from 'react';
 export type Permission = NotificationPermission | 'unsupported';
 
 export const notificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window;
-const read = (): Permission => notificationsSupported() ? Notification.permission : 'unsupported';
+// The Windows app's toasts need no browser permission, so it never asks (src/platform/notifier.ts).
+const read = (): Permission => nativeReminders() ? 'granted' : notificationsSupported() ? Notification.permission : 'unsupported';
 
 let current: Permission = read();
 const listeners = new Set<() => void>();

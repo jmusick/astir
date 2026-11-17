@@ -30,6 +30,10 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
 
+# Reminder toasts with click and dismiss callbacks (D36, D42), which the notification plugin lacks on Windows.
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.7"
+
 [profile.release]
 codegen-units = 1
 lto = true

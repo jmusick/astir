@@ -1,5 +1,5 @@
 // Astir's native shell. It hosts the shared React UI and TypeScript sync engine (D12, D13) and
-// adds only what a browser can't: the tray, start-at-login, the quick-add shortcut, the astir:// sign-in link, opening
+// adds only what a browser can't: the tray, start-at-login, the quick-add shortcut, reminder toasts, the astir:// sign-in link, opening
 // the browser and the local SQLite file. Data logic never lives in Rust.
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -16,6 +16,44 @@ fn show_main(app: &AppHandle) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+}
+
+/// Shows a reminder as a Windows toast (D36, D42). The UI decides what's due and what it says; this
+/// only delivers it and reports back, by tag, whether the user clicked it (open the item) or closed
+/// it (dismiss it everywhere). A toast that times out into the Action Center reports nothing.
+#[cfg(windows)]
+#[tauri::command]
+fn show_reminder(app: AppHandle, tag: String, title: String, body: String) -> Result<(), String> {
+    use tauri_winrt_notification::{Duration, Toast, ToastDismissalReason};
+    // An installed app's shortcut carries its identifier as the toast app id; a development build
+    // has no shortcut, so it borrows PowerShell's, as Tauri's own notification plugin does.
+    let app_id = if cfg!(debug_assertions) { Toast::POWERSHELL_APP_ID.to_string() } else { app.config().identifier.clone() };
+    let on_click = (app.clone(), tag.clone());
+    let on_close = (app.clone(), tag);
+    Toast::new(&app_id)
+        .title(&title)
+        .text1(&body)
+        .duration(Duration::Long)
+        .on_activated(move |_| {
+            show_main(&on_click.0);
+            let _ = on_click.0.emit_to("main", "astir://reminder-activated", on_click.1.clone());
+            Ok(())
+        })
+        .on_dismissed(move |reason| {
+            if reason == Some(ToastDismissalReason::UserCanceled) {
+                let _ = on_close.0.emit_to("main", "astir://reminder-dismissed", on_close.1.clone());
+            }
+            Ok(())
+        })
+        .show()
+        .map_err(|error| error.to_string())
+}
+
+/// Elsewhere the UI falls back to the webview's own notifications.
+#[cfg(not(windows))]
+#[tauri::command]
+fn show_reminder(_tag: String, _title: String, _body: String) -> Result<(), String> {
+    Err("native reminders are Windows-only for now".into())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -85,6 +123,7 @@ pub fn run() {
             }
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![show_reminder])
         .on_window_event(|window, event| {
             // Closing a window keeps Astir in the tray, syncing and reminding (D35); the quick-add
             // box just hides until it's wanted again. Quit is in the tray menu.

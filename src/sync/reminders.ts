@@ -4,8 +4,8 @@ import { blank, checkedAt, habitCompletionId, isCompleted, live, taskCompletionI
 import { recordKey } from './types';
 import type { DayData, DismissalData, ItemData, SyncRecord } from './types';
 
-// When reminders are due (D16, D42). Pure, like daily.ts: the web view's notifier and, later, the
-// native app ask the same question. A today-only task's reminder is a time on its original day
+// When reminders are due (D16, D42). Pure, like daily.ts: the web view's notifier and the native
+// app ask the same question. A today-only task's reminder is a time on its original day
 // only, so it doesn't fire again once it rolls over; a recurring item's is a time on each
 // scheduled day; a list task's is one instant, so it doesn't fire again once it's overdue.
 
@@ -71,4 +71,18 @@ export function remindersDue(records: ReadonlyMap<string, SyncRecord>, versions:
 /** Records that a reminder was dismissed, so devices that haven't shown it yet skip it (D42). */
 export function dismissed(reminder: Pick<DueReminder, 'item' | 'id' | 'day' | 'reminder'>): SyncRecord[] {
   return [blank<DismissalData>('dismissal', reminder.id, { itemId: reminder.item.id, day: reminder.day, reminder: reminder.reminder })];
+}
+
+/**
+ * Where a native app's reminder check starts (D36). It looks back to its last check, so reminders
+ * that came due while it wasn't running, or the computer slept, are shown once, but never past the
+ * start of today's account day: yesterday's missed reminders stay missed. A first check ever starts
+ * now, so a new install doesn't replay the day.
+ */
+export function catchUpFrom(versions: readonly DayData[], lastChecked: number | null, now: number): number {
+  if (lastChecked === null || !Number.isFinite(lastChecked) || lastChecked > now) return now;
+  const day = dayAt(versions, now);
+  const settings = settingsOn(versions, day);
+  const dayStart = zonedInstant(day, `${String(settings.startHour).padStart(2, '0')}:00`, settings.timeZone);
+  return Math.max(lastChecked, dayStart);
 }

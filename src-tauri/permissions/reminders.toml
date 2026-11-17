@@ -1,0 +1,5 @@
+# Lets the UI hand a due reminder to the native toast (show_reminder in src/lib.rs).
+[[permission]]
+identifier = "allow-show-reminder"
+description = "Show a reminder as a native notification."
+commands.allow = ["show_reminder"]

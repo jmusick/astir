@@ -17,6 +17,7 @@
     "core:webview:default",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
+    "allow-show-reminder",
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled",

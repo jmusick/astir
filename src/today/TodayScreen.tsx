@@ -65,7 +65,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
   const [error, setError] = useState('');
   // Clicking a reminder opens its item: on Today for habits and today-only tasks, in its list otherwise.
   const [focus, setFocus] = useState<FocusRequest | null>(null);
-  useReminders(engine, ({ item }) => {
+  useReminders(engine, account.id, ({ item }) => {
     window.location.hash = item.data!.kind === 'task' ? listHref(item.data!.listId!) : todayHref;
     setFocus({ itemId: item.id, nonce: Date.now() });
   });
