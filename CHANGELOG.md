@@ -4,6 +4,12 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-16
+
+### Added
+
+- Astir’s web view now opens without a connection after your first visit. Reload with no internet and Today comes up with your habits and tasks; anything you change is saved in the browser and syncs on its own when you’re back online. If Astir’s servers are down, or the connection stalls, you see a quiet “not synced yet” note instead of an error, and Astir keeps retrying.
+
 ## [0.5.0] - 2026-11-16
 
 ### Added
@@ -35,7 +41,9 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 - Astir has a home at [astir.stonedragonmedia.com](https://astir.stonedragonmedia.com). There's nothing to use yet: the page is a placeholder while the daily list is built.
 - Astir's code is available under the Astir Non-Commercial License: free for personal and non-commercial use.
 
-[Unreleased]: https://github.com/jmusick/astir/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/jmusick/astir/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/jmusick/astir/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/jmusick/astir/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/jmusick/astir/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jmusick/astir/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jmusick/astir/compare/v0.1.0...v0.2.0
