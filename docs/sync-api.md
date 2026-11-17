@@ -24,13 +24,13 @@ Every endpoint requires the existing, verified browser session cookie and `X-Ast
 }
 ```
 
-Each change is a **full record**, not a patch. A push may contain multiple entity types, in any order, with each entity/ID at most once. Include parents in the same push or push them first. The server orders lists before items, parents before subtasks, and items before schedules/completions. Missing references reject the whole push; clients retain the changes locally and retry with the dependencies.
+Each change is a **full record**, not a patch. A push may contain multiple entity types, in any order, with each entity/ID at most once. Include parents in the same push or push them first. The server orders lists before items, parents before subtasks, and items before schedules, completions and dismissals. Missing references reject the whole push; clients retain the changes locally and retry with the dependencies.
 
 The response is `{ "accepted": 1, "serverTime": 1794848400000 }`. `accepted` counts valid submitted records, including stale writes and retries that made no change. Pull afterward to reconcile against authoritative records. A push never advances the client's pull cursor.
 
 ### Record envelope and conflicts
 
-- `entity`: `list`, `item`, `schedule`, `completion` or `day`.
+- `entity`: `list`, `item`, `schedule`, `completion`, `day` or `dismissal`.
 - List/item `id`: client-generated, 1–128 ASCII letters, digits, hyphens or underscores. UUIDs work. IDs are scoped to account and entity.
 - `editedAt`: nonnegative, safe integer epoch milliseconds, within JavaScript's date range. More than five minutes ahead of server time is clamped to server time. Past timestamps are accepted for long offline gaps.
 - `deleted`: required boolean. A delete may omit `data`; its supplied data is ignored. Existing archive data is retained.
@@ -47,6 +47,7 @@ The latest client edit timestamp wins per record. Equal timestamps keep the firs
 | `schedule` | `itemId`, `effectiveDay`, `weekdays`: distinct integers 0 (Sunday) to 6 (Saturday), at least one; all seven means every day |
 | `completion` | `itemId`, nullable `day`, `completed` (required boolean) |
 | `day` | `effectiveDay`, `timeZone` (an IANA zone such as `America/New_York`), `startHour` (whole hour, 0–23) |
+| `dismissal` | `itemId`, nullable `day`, `reminder` (the `HH:mm` time or UTC instant that was dismissed) |
 
 `position` is finite, with absolute value at most `Number.MAX_SAFE_INTEGER`. Titles must contain non-whitespace text. Text length limits use JavaScript string length (UTF-16 code units). Dates are valid `YYYY-MM-DD` calendar days from year 0001 to 9999.
 
@@ -57,6 +58,7 @@ The latest client edit timestamp wins per record. Equal timestamps keep the firs
 - Item `kind`, `listId`, `parentId`, `originalDay` and `createdDay` are immutable. This API does not support moving or converting items.
 - A schedule references a habit. Its ID is **`itemId:effectiveDay`**. The first version takes effect on the habit's creation day; the client submits later versions effective from the next account reset (D34/D40). History selects the latest version effective on or before the day being viewed. The server stores these versions separately and rejects versions before the creation day; computing the account's current day and next reset belongs to the client (`src/sync/day.ts`).
 - A habit completion's ID is **`itemId:YYYY-MM-DD`**, with that day in `data.day`, on or after creation. A task/subtask completion's ID is **`itemId:task`**, with null/omitted `data.day`. These semantic IDs ensure two devices create one record for the same completion.
+- A **dismissal** records that the user dismissed a reminder, so devices that haven't shown it yet skip it (D42). Its ID and references follow completions: **`itemId:YYYY-MM-DD`** for a habit's day, on or after creation, and **`itemId:task`** with null `day` for a task. `reminder` is the item's reminder value when it was dismissed; clients show the reminder again only if the item's reminder has changed since. Dismissals don't count toward any quota. They need migration `0004_dismissals.sql`: apply it before deploying a client that sends them, or every push that includes one is rejected.
 - **Day settings** are the account's time zone and day-start hour (D6). Each version's ID is its **`effectiveDay`**; it governs from that day until a later version takes over. The client writes the first version as `0001-01-01` and later changes effective from the next account reset (D34), so a day is never split or counted twice.
 
 Deleting a list, item or schedule does not cascade through sync records. Parents retain their archived data so offline dependent records remain valid. Clients must preserve and reconcile children of archived parents; hiding a parent must not silently discard them. Account deletion, by contrast, cascades through all the account's records. Tombstones and completion history are retained without expiry.

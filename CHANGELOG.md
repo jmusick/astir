@@ -4,6 +4,10 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Reminders now pop up while Astir is open in a browser tab. A today-only task reminds you at its time on its day, a habit on each day it's scheduled, and a list task at its date and time. Click the notification to go straight to the item. Close it and your other devices won't show it too, unless they already did. A reminder doesn't come back once a task rolls over or is overdue, and one whose time passed while no tab was open isn't shown later. Astir asks to show notifications when you set a reminder or turn them on from Today, not when the page loads. Reminders with the browser closed come with the Windows app.
+
 ## [0.8.0] - 2026-11-16
 
 ### Added

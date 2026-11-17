@@ -118,6 +118,30 @@ describe('sync model and conflicts', () => {
   });
 });
 
+describe('reminder dismissals', () => {
+  const dismissal = (itemId: string, day: string | null, reminder: string, editedAt = NOW) =>
+    change('dismissal', `${itemId}:${day ?? 'task'}`, { itemId, day, reminder }, editedAt);
+  it('stores dismissals keyed like completions, with the latest edit winning', async () => {
+    const task = change('item', 'task', { kind: 'task', title: 'Ship', listId: 'work', reminder: `${DAY}T17:30:00.000Z` });
+    expect((await push([dismissal('habit', DAY, '17:30'), dismissal('today', null, '09:00'), dismissal('task', null, `${DAY}T17:30:00.000Z`),
+      habit(), today(), list(), task])).status).toBe(200);
+    expect((await push([dismissal('habit', DAY, '18:00', NOW + 1)])).status).toBe(200);
+    const page = await pull();
+    expect(page.changes.filter((c) => c.entity === 'dismissal').map((c) => [c.id, c.data?.reminder]).sort()).toEqual([
+      [`habit:${DAY}`, '18:00'], ['task:task', `${DAY}T17:30:00.000Z`], ['today:task', '09:00']]);
+  });
+  it('rejects bad IDs, reminders, fields and references', async () => {
+    await push([habit(), today()]);
+    for (const c of [dismissal('missing', null, '09:00'), dismissal('habit', null, '09:00'), dismissal('today', DAY, '09:00'),
+      dismissal('habit', '2026-11-15', '09:00'), dismissal('today', null, '9am'), dismissal('today', null, `${DAY}T17:30:00Z`),
+      { ...dismissal('today', null, '09:00'), id: `today:${DAY}` },
+      change('dismissal', 'today:task', { itemId: 'today', day: null, reminder: '09:00', extra: 1 })]) {
+      expect((await push([c as Change])).status, JSON.stringify(c)).toBe(400);
+    }
+    expect(count()).toBe(2);
+  });
+});
+
 describe('day settings', () => {
   it('stores versions keyed by their effective day, with the latest edit winning', async () => {
     expect((await push([daySettings(), daySettings(DAY, { startHour: 0, timeZone: 'Asia/Tokyo' })])).status).toBe(200);

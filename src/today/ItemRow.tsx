@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useRef, useState } from 'react';
+import { FocusItem } from '../reminders/focusItem';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { carriedLabel, cleanTitle, TITLE_MAX } from '../sync/daily';
 import type { ItemData, SyncRecord } from '../sync/types';
@@ -28,6 +29,28 @@ export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete
   // Enter or Escape ends editing before the input's blur fires; the blur must not save again.
   const open = useRef(false);
 
+  // A clicked reminder opens its item: scrolled into view with its details showing.
+  const focus = useContext(FocusItem);
+  const row = useRef<HTMLLIElement>(null);
+  const [flash, setFlash] = useState(false);
+  // Starts at null so a row that mounts with the request (a list opened by the click) opens too.
+  const [seen, setSeen] = useState<typeof focus>(null);
+  if (focus !== seen) {
+    setSeen(focus);
+    if (focus?.itemId === item.id) { if (details) setExpanded(true); setFlash(true); }
+  }
+  const focused = focus?.itemId === item.id;
+  useEffect(() => {
+    if (!focused) return;
+    row.current?.scrollIntoView({ block: 'center' });
+    row.current?.querySelector<HTMLInputElement>('input.check')?.focus({ preventScroll: true });
+  }, [focused, focus]);
+  useEffect(() => {
+    if (!flash) return;
+    const timer = setTimeout(() => setFlash(false), 2_000);
+    return () => clearTimeout(timer);
+  }, [flash]);
+
   // A delete needs a second click within a few seconds: no dialog, and no loss from a stray click.
   useEffect(() => {
     if (!confirming) return;
@@ -48,7 +71,7 @@ export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete
     if (event.key === 'Escape') { event.preventDefault(); finish(false); }
   }
 
-  return <li className={`item ${kind}${done ? ' done' : ''}`}>
+  return <li ref={row} className={`item ${kind}${done ? ' done' : ''}${flash ? ' focused' : ''}`}>
     <div className="item-main">
       <input type="checkbox" className="check" id={`${id}-check`} checked={done} onChange={(e) => onToggle(e.target.checked)} />
       {editing

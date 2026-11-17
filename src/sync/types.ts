@@ -1,5 +1,5 @@
 // The wire and storage shape of a sync record. docs/sync-api.md owns the contract.
-export type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day';
+export type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day' | 'dismissal';
 
 export interface SyncRecord<D = unknown> {
   entity: Entity;
@@ -28,6 +28,8 @@ export interface ItemData {
 }
 export interface ScheduleData { itemId: string; effectiveDay: string; weekdays: number[] }
 export interface CompletionData { itemId: string; day: string | null; completed: boolean }
+/** A reminder the user dismissed, so other devices skip it (D42). `reminder` is the time it was for. */
+export interface DismissalData { itemId: string; day: string | null; reminder: string }
 /** The account's day boundary from effectiveDay on: an IANA time zone and a day-start hour (D6, D34). */
 export interface DayData { effectiveDay: string; timeZone: string; startHour: number }
 

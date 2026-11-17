@@ -107,6 +107,8 @@ button.link { background: none; border: 0; padding: 0; color: var(--link); text-
 .empty { margin: .25rem 0 .75rem; color: var(--muted); }
 
 .item { padding: .55rem 0; border-bottom: 1px solid color-mix(in srgb, var(--tone) 15%, transparent); }
+/* A clicked reminder's item, briefly marked so the eye lands on it. */
+.item.focused { background: color-mix(in srgb, var(--tone) 12%, transparent); transition: background .6s; }
 .item:last-child { border-bottom: 0; }
 .item-main { display: flex; align-items: center; gap: .75rem; }
 .item .title { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; cursor: pointer; display: block; }
@@ -140,8 +142,8 @@ textarea { width: 100%; font: inherit; resize: vertical; border: 1px solid var(-
 .add-row.small button { padding: .4rem .8rem; }
 .carried { flex: none; font-size: .75rem; font-weight: 700; padding: .15rem .55rem; border-radius: 999px; color: var(--on-tone); background: var(--tone); }
 .resets { color: var(--muted); font-weight: 600; }
-.notice.zone p { margin: 0; }
-.notice.zone p + p { margin-top: .6rem; }
+.notice.zone p, .notice.reminders p { margin: 0; }
+.notice.zone p + p, .notice.reminders p + p { margin-top: .6rem; }
 .day-settings { margin-top: 1.5rem; color: var(--muted); font-size: .9rem; }
 .day-settings summary { cursor: pointer; font-weight: 600; width: fit-content; }
 .day-settings form { margin-top: .75rem; max-width: 22rem; color: var(--text); }

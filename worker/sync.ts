@@ -3,8 +3,8 @@ import { isAllowedOrigin } from './headers';
 
 export const SYNC_LIMITS = { lists: 100, openItems: 10_000, subtasks: 100, daySettings: 1_000, title: 500, notes: 20_000, changes: 500, bytes: 1_048_576 } as const;
 const FUTURE_MS = 5 * 60_000;
-type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day';
-const ENTITIES: string[] = ['list', 'item', 'schedule', 'completion', 'day'];
+type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day' | 'dismissal';
+const ENTITIES: string[] = ['list', 'item', 'schedule', 'completion', 'day', 'dismissal'];
 type Data = Record<string, string | number | boolean | null | number[]>;
 type Change = { entity: Entity; id: string; editedAt: number; deleted: boolean; data: Data | null };
 type Row = { entity: Entity; id: string; edited_at: number; deleted: number; data: string | null; revision: number };
@@ -67,6 +67,10 @@ function dataOf(entity: Entity, value: unknown): Data {
     if (typeof d.completed !== 'boolean') throw new SyncError('completed must be true or false.');
     return { itemId: id(d.itemId), day: d.day == null ? null : day(d.day), completed: d.completed };
   }
+  if (entity === 'dismissal') {
+    fields(d, ['itemId', 'day', 'reminder']);
+    return { itemId: id(d.itemId), day: d.day == null ? null : day(d.day), reminder: reminderOf(d.reminder) };
+  }
   fields(d, ['kind', 'title', 'notes', 'listId', 'parentId', 'originalDay', 'createdDay', 'dueDay', 'reminder', 'position']);
   if (typeof d.kind !== 'string' || !['habit', 'today', 'task'].includes(d.kind)) throw new SyncError('Item kind must be habit, today or task.');
   const kind = d.kind;
@@ -77,13 +81,19 @@ function dataOf(entity: Entity, value: unknown): Data {
   let reminder: string | null = null;
   if (d.reminder != null) {
     if (kind === 'task') {
-      if (typeof d.reminder !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\.000Z$/.test(d.reminder)) throw new SyncError('List reminders must be UTC instants (YYYY-MM-DDTHH:mm:00.000Z).');
-      day(d.reminder.slice(0, 10)); time(d.reminder.slice(11, 16)); reminder = d.reminder;
+      if (typeof d.reminder !== 'string' || !INSTANT.test(d.reminder)) throw new SyncError('List reminders must be UTC instants (YYYY-MM-DDTHH:mm:00.000Z).');
+      reminder = reminderOf(d.reminder);
     } else reminder = time(d.reminder);
   }
   return { kind, title: text(d.title, 'Title', SYNC_LIMITS.title, true), notes: text(d.notes ?? '', 'Notes', SYNC_LIMITS.notes),
     listId, parentId, originalDay: kind === 'today' ? day(d.originalDay) : null,
     createdDay: kind === 'habit' ? day(d.createdDay) : null, dueDay: d.dueDay == null ? null : day(d.dueDay), reminder, position: position(d.position) };
+}
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\.000Z$/;
+/** An HH:mm time, or a list task's UTC instant (YYYY-MM-DDTHH:mm:00.000Z). */
+function reminderOf(value: unknown): string {
+  if (typeof value === 'string' && INSTANT.test(value)) { day(value.slice(0, 10)); time(value.slice(11, 16)); return value; }
+  return time(value);
 }
 function position(value: unknown): number {
   if (value === undefined) return 0;
@@ -99,7 +109,7 @@ function changeOf(value: unknown, now: number): Change {
   const entity = c.entity as Entity;
   const data = c.deleted ? null : dataOf(entity, c.data);
   let key: string;
-  if (entity === 'schedule' || entity === 'completion') {
+  if (entity === 'schedule' || entity === 'completion' || entity === 'dismissal') {
     // Semantic, client-generated IDs make retries and simultaneous checks idempotent.
     if (data) key = `${data.itemId}:${entity === 'schedule' ? data.effectiveDay : data.day ?? 'task'}`;
     else {
@@ -109,7 +119,7 @@ function changeOf(value: unknown, now: number): Change {
       if (suffix !== 'task') day(suffix);
       key = c.id;
     }
-    if (c.id !== key) throw new SyncError('Use itemId:effectiveDay for schedules and itemId:day (or itemId:task) for completions.');
+    if (c.id !== key) throw new SyncError('Use itemId:effectiveDay for schedules and itemId:day (or itemId:task) for completions and dismissals.');
   } else if (entity === 'day') {
     // Day settings are versioned by the day they take effect (D34), one record per day.
     key = data ? data.effectiveDay as string : day(c.id);

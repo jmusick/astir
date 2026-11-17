@@ -5,11 +5,15 @@ import { forgetAccount } from '../rememberedAccount';
 import { newHabit, newTodayTask, progressLabel, removed, renamed, setCompleted, todayView } from '../sync/daily';
 import { dueLabel, listSummaries, newList } from '../sync/lists';
 import { addDays, changeDaySettings, dayAt, dayLabel, dayVersions, deviceTimeZone, firstDaySettings, hourLabel, settingsOn } from '../sync/day';
-import type { DayData, SyncRecord } from '../sync/types';
+import type { DayData, ItemData, SyncRecord } from '../sync/types';
 import ListScreen from '../lists/ListScreen';
 import ListsNav from '../lists/ListsNav';
 import HistoryScreen from '../history/HistoryScreen';
-import { listHref, useRoute } from '../route';
+import { listHref, todayHref, useRoute } from '../route';
+import { FocusItem } from '../reminders/focusItem';
+import type { FocusRequest } from '../reminders/focusItem';
+import { requestNotifications, useNotificationPermission } from '../reminders/permission';
+import { useReminders } from '../reminders/useReminders';
 import { AddHabitForm, AddTaskForm } from './AddForms';
 import DaySettingsForm from './DaySettingsForm';
 import ItemDetails from './ItemDetails';
@@ -56,6 +60,25 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
   const [keepZone, setKeepZone] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState('');
+  // Clicking a reminder opens its item: on Today for habits and today-only tasks, in its list otherwise.
+  const [focus, setFocus] = useState<FocusRequest | null>(null);
+  useReminders(engine, ({ item }) => {
+    window.location.hash = item.data!.kind === 'task' ? listHref(item.data!.listId!) : todayHref;
+    setFocus({ itemId: item.id, nonce: Date.now() });
+  });
+  // Cleared once the item has opened, so it doesn't open again on a later visit to its screen.
+  useEffect(() => {
+    if (!focus) return;
+    const timer = setTimeout(() => setFocus(null), 1_000);
+    return () => clearTimeout(timer);
+  }, [focus]);
+  const permission = useNotificationPermission();
+  const [skipPrompt, setSkipPrompt] = useState(false);
+  const hasReminders = useMemo(() => {
+    if (!snapshot) return false;
+    for (const r of snapshot.records.values()) if (r.entity === 'item' && !r.deleted && (r.data as ItemData | null)?.reminder) return true;
+    return false;
+  }, [snapshot]);
 
   // Never awaited by the UI: the snapshot is already updated when change() returns.
   const save = (records: SyncRecord[]) => { void engine?.change(records).catch(() => undefined); };
@@ -100,7 +123,14 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
       </div>
     </header>
     {error && <p className="notice error" role="alert">{error}</p>}
-    {!view || !engine ? <p role="status" className="intro">Opening your day…</p> : <>
+    {!view || !engine ? <p role="status" className="intro">Opening your day…</p> : <FocusItem value={focus}>
+      {hasReminders && permission === 'default' && !skipPrompt && <div className="notice reminders" role="status">
+        <p>Turn on notifications so your reminders pop up while Astir is open in a tab.</p>
+        <p>
+          <button type="button" className="quiet" onClick={() => void requestNotifications()}>Turn on notifications</button>
+          {' '}<button type="button" className="link" onClick={() => setSkipPrompt(true)}>Not now</button>
+        </p>
+      </div>}
       <ListsNav route={route} lists={lists} todayLeft={view.total - view.done}
         onCreate={(title) => { const id = crypto.randomUUID(); save(newList(id, title, Date.now())); window.location.hash = listHref(id); }} />
       {route.screen === 'list'
@@ -171,6 +201,6 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
             onSave={(next) => save(changeDaySettings(versions, next))} />
         </>}
       <SyncStatusLine status={snapshot!.status} localOnly={localOnly} onRetry={() => void engine.sync()} />
-    </>}
+    </FocusItem>}
   </main>;
 }
