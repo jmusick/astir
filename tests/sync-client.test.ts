@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SignJWT } from 'jose';
 import worker from '../worker/index';
 import { SyncEngine } from '../src/sync/engine';
-import { EVERY_DAY, newHabit, newTodayTask, removed, setCompleted, todayView } from '../src/sync/daily';
+import { EVERY_DAY, newHabit, newTodayTask, removed, renamed, setCompleted, todayView } from '../src/sync/daily';
 import { MemoryStore } from '../src/sync/store';
-import { httpTransport } from '../src/sync/transport';
+import { SyncRequestError, httpTransport } from '../src/sync/transport';
+import type { SyncTransport } from '../src/sync/transport';
 import type { ItemData, SyncRecord } from '../src/sync/types';
 import { testDatabase } from './helpers/d1';
 
@@ -91,5 +92,57 @@ describe('sync engine against the Worker', () => {
     await engine.change([{ entity: 'completion', id: 'missing:task', editedAt: 0, deleted: false, data: { itemId: 'missing', day: null, completed: true } }]);
     await engine.sync();
     expect(engine.getSnapshot().status).toMatchObject({ state: 'rejected', message: 'Invalid record reference.', pending: 1 });
+  });
+
+  it('keeps the later offline rename from two browsers, even when it syncs first (D32)', async () => {
+    const cookie = await session('owner');
+    const tenAm = Date.now() - 3_600_000;
+    const clocks = { a: tenAm - 60_000, b: tenAm - 60_000 };
+    let online = true;
+    const unreachable = () => Promise.reject(new SyncRequestError('Astir could not be reached.', 0));
+    const browser = (name: 'a' | 'b') => {
+      const http = transportFor(cookie);
+      const transport: SyncTransport = {
+        push: (changes) => online ? http.push(changes) : unreachable(),
+        pull: (cursor) => online ? http.pull(cursor) : unreachable(),
+      };
+      return SyncEngine.open(new MemoryStore(), transport, { syncDelayMs: false, retryBaseMs: 3_600_000, now: () => clocks[name] });
+    };
+    const a = await browser('a');
+    const b = await browser('b');
+    await a.change(newTodayTask('t', 'Call the bank', MONDAY, 1));
+    await a.sync(); await b.sync();
+
+    online = false;
+    clocks.a = tenAm;
+    await a.change(renamed(item(a, 't'), 'Call the bank at 10:00'));
+    clocks.b = tenAm + 5 * 60_000;
+    await b.change(renamed(item(b, 't'), 'Call the bank at 10:05'));
+    await a.sync(); await b.sync();
+    expect(a.getSnapshot().status).toMatchObject({ state: 'offline', pending: 1 });
+    expect(item(a, 't').data?.title).toBe('Call the bank at 10:00');
+
+    // The later rename reaches the server first; the earlier one then arrives and loses.
+    online = true;
+    await b.sync(); await a.sync(); await b.sync();
+    for (const engine of [a, b]) {
+      expect(item(engine, 't').data?.title).toBe('Call the bank at 10:05');
+      expect(engine.getSnapshot().status).toMatchObject({ state: 'synced', pending: 0 });
+      engine.close();
+    }
+  });
+
+  it('shows a quiet offline state while D1 is down, keeps the change, and syncs once it is back', async () => {
+    const cookie = await session('owner');
+    const engine = await SyncEngine.open(new MemoryStore(), transportFor(cookie), { syncDelayMs: false, retryBaseMs: 3_600_000 });
+    const db = env.DB;
+    env.DB = { prepare() { throw new Error('D1_ERROR: storage unavailable'); }, batch() { throw new Error('D1_ERROR: storage unavailable'); } } as unknown as D1Database;
+    await engine.change(newTodayTask('t', 'Call the bank', MONDAY, 1));
+    await engine.sync();
+    expect(engine.getSnapshot().status).toMatchObject({ state: 'offline', message: '', pending: 1 });
+    env.DB = db;
+    await engine.sync();
+    expect(engine.getSnapshot().status).toMatchObject({ state: 'synced', pending: 0 });
+    engine.close();
   });
 });

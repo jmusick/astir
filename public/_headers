@@ -11,3 +11,7 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# The service worker (D33). Browsers check it for updates on navigation; no-cache keeps that check honest.
+/sw.js
+  Cache-Control: no-cache

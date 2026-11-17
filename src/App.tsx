@@ -6,6 +6,8 @@ import { isLinkMode } from './authMode';
 import AuthScreen from './AuthScreen';
 import TodayScreen from './today/TodayScreen';
 
+const ME_TIMEOUT_MS = 8_000;
+
 export default function App() {
   const [user, setUser] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
@@ -13,7 +15,8 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    authApi('me', undefined, controller.signal).then((data) => {
+    // A stalled connection never fails on its own, so give up and open the local data instead.
+    authApi('me', undefined, AbortSignal.any([controller.signal, AbortSignal.timeout(ME_TIMEOUT_MS)])).then((data) => {
       if (data.user) rememberAccount(data.user); else forgetAccount();
       setUser(data.user || null);
     }).catch((error: unknown) => {
