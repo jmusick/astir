@@ -9,13 +9,14 @@ import type { DayData, ItemData, SyncRecord } from '../sync/types';
 import ListScreen from '../lists/ListScreen';
 import ListsNav from '../lists/ListsNav';
 import HistoryScreen from '../history/HistoryScreen';
-import { listHref, todayHref, useRoute } from '../route';
+import { listHref, settingsHref, todayHref, useRoute } from '../route';
+import SettingsScreen from '../settings/SettingsScreen';
+import { exportNow } from '../settings/accountData';
 import { FocusItem } from '../reminders/focusItem';
 import type { FocusRequest } from '../reminders/focusItem';
 import { requestNotifications, useNotificationPermission } from '../reminders/permission';
 import { useReminders } from '../reminders/useReminders';
 import { AddHabitForm, AddTaskForm } from './AddForms';
-import DaySettingsForm from './DaySettingsForm';
 import ItemDetails from './ItemDetails';
 import { ItemMeta } from './ItemMeta';
 import ItemRow from './ItemRow';
@@ -45,7 +46,7 @@ function useToday(versions: readonly DayData[]) {
   return useMemo(() => dayAt(versions, now), [versions, now]);
 }
 
-export default function TodayScreen({ account, onSignedOut }: { account: Account; onSignedOut: () => void }) {
+export default function TodayScreen({ account, onSignedOut }: { account: Account; onSignedOut: (notice?: string) => void }) {
   const { engine, snapshot, localOnly } = useSyncEngine(account.id);
   const versions = useMemo(() => snapshot ? dayVersions(snapshot.records) : NO_VERSIONS, [snapshot]);
   const day = useToday(versions);
@@ -97,6 +98,23 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
   const state = snapshot?.status.state;
   const everSynced = snapshot?.clockSkewMs != null || state === 'offline' || state === 'rejected' || state === 'signed-out';
 
+  /** Forget this account on this device and wipe its local data (D29, D45). */
+  async function clearDevice(notice: string) {
+    forgetAccount();
+    // The delete stays queued in IndexedDB even if another tab holds the database open a moment.
+    if (engine) await withTimeout(engine.destroy().catch(() => undefined), 5_000, () => undefined);
+    onSignedOut(notice);
+  }
+
+  // Deleted from another device: nothing here can sync again, so say why and clear it (D29).
+  const deletedElsewhere = state === 'account-deleted';
+  const clearing = useRef(false);
+  useEffect(() => {
+    if (!deletedElsewhere || clearing.current) return;
+    clearing.current = true;
+    void clearDevice('This account was deleted, so Astir removed its data from this device.');
+  });
+
   async function signOut() {
     if (!engine) return;
     setSigningOut(true); setError('');
@@ -105,10 +123,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
       const unsynced = await withTimeout(engine.flush(), SIGN_OUT_SYNC_MS, () => engine.getSnapshot().status.pending);
       if (unsynced && !window.confirm(`${unsynced === 1 ? '1 change hasn’t' : `${unsynced} changes haven’t`} synced yet. Signing out removes ${unsynced === 1 ? 'it' : 'them'} from this device. Sign out anyway?`)) return;
       await authApi('logout', {});
-      forgetAccount();
-      // The delete stays queued in IndexedDB even if another tab holds the database open a moment.
-      await withTimeout(engine.destroy().catch(() => undefined), 5_000, () => undefined);
-      onSignedOut();
+      await clearDevice('You’re signed out.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not sign out. Please try again.');
     } finally { setSigningOut(false); }
@@ -119,6 +134,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
       <a className="brand" href="/">Astir<span className="brand-dot" aria-hidden="true">●</span></a>
       <div className="account-menu">
         <span className="who">{account.email}</span>
+        <a className="settings-link" href={settingsHref} {...(route.screen === 'settings' ? { 'aria-current': 'page' as const } : {})}>Settings</a>
         <button type="button" className="quiet" onClick={signOut} disabled={!engine || signingOut}>{signingOut ? 'Signing out…' : 'Sign out'}</button>
       </div>
     </header>
@@ -135,6 +151,10 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
         onCreate={(title) => { const id = crypto.randomUUID(); save(newList(id, title, Date.now())); window.location.hash = listHref(id); }} />
       {route.screen === 'list'
         ? <ListScreen key={route.listId} listId={route.listId} records={snapshot!.records} day={day} timeZone={zone} save={save} synced={everSynced} />
+        : route.screen === 'settings'
+        ? <SettingsScreen account={account} engine={engine} versions={versions} day={day} save={save}
+            signOut={() => void signOut()} signingOut={signingOut}
+            onDeleted={() => clearDevice('Your account and everything in it were deleted.')} />
         : route.screen === 'history'
         ? <HistoryScreen records={snapshot!.records} today={day} versions={versions} requested={route.day} />
         : <>
@@ -197,10 +217,9 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
               </ul>
             </section>}
           </div>
-          <DaySettingsForm key={`${upcoming.timeZone} ${upcoming.startHour}`} settings={upcoming}
-            onSave={(next) => save(changeDaySettings(versions, next))} />
         </>}
-      <SyncStatusLine status={snapshot!.status} localOnly={localOnly} onRetry={() => void engine.sync()} />
+      <SyncStatusLine status={snapshot!.status} localOnly={localOnly} onRetry={() => void engine.sync()}
+        onExport={() => void exportNow(engine, account.email)} />
     </FocusItem>}
   </main>;
 }

@@ -193,6 +193,33 @@ export async function currentSession(request: Request, env: Env) {
   return row;
 }
 
+/**
+ * Why a request without a usable session was refused, when its cookie still carries a token this
+ * server signed. Only the owner of that token learns that its account is gone, so a deleted
+ * account's other devices can clear their local copy (D29). Expiry is ignored for this check.
+ */
+export async function signedOutReason(request: Request, env: Env): Promise<'account-deleted' | undefined> {
+  const token = getCookie(request);
+  if (!token) return undefined;
+  try {
+    const { payload } = await jwtVerify(token, signingKey(env), { algorithms: ['HS256'], issuer: ISSUER, audience: AUDIENCE, clockTolerance: '3650d' });
+    if (typeof payload.sub !== 'string') return undefined;
+    const user = await env.DB.prepare('SELECT 1 AS n FROM users WHERE id = ?').bind(payload.sub).first();
+    return user ? undefined : 'account-deleted';
+  } catch { return undefined; }
+}
+export const signedOut = async (request: Request, env: Env) => ({ error: 'Please sign in.', ...(await signedOutReason(request, env) ? { reason: 'account-deleted' } : {}) });
+
+/** "Chrome on Windows" from a User-Agent; never shown raw, which is long and fingerprint-like. */
+export function deviceName(userAgent: string): string {
+  const browser = /Edg\//.test(userAgent) ? 'Edge' : /OPR\/|Opera/.test(userAgent) ? 'Opera' : /Firefox\//.test(userAgent) ? 'Firefox'
+    : /Chrome\//.test(userAgent) ? 'Chrome' : /Safari\//.test(userAgent) ? 'Safari' : 'A browser';
+  const os = /Windows/.test(userAgent) ? 'Windows' : /iPhone|iPad/.test(userAgent) ? 'iOS' : /Android/.test(userAgent) ? 'Android'
+    : /Mac OS X|Macintosh/.test(userAgent) ? 'macOS' : /CrOS/.test(userAgent) ? 'ChromeOS' : /Linux/.test(userAgent) ? 'Linux' : '';
+  return os ? `${browser} on ${os}` : browser;
+}
+export const DELETE_CONFIRMATION = 'DELETE';
+
 export async function handleAuth(request: Request, env: Env, context?: Pick<ExecutionContext, 'waitUntil'>): Promise<Response> {
   try {
     const path = new URL(request.url).pathname;
@@ -201,7 +228,16 @@ export async function handleAuth(request: Request, env: Env, context?: Pick<Exec
     if (request.method !== 'GET' && !isAllowedOrigin(request.headers.get('Origin'), request, env)) throw new AuthError('Untrusted request origin.', 403);
     if (request.method === 'GET' && path === '/api/auth/me') {
       const session = await currentSession(request, env);
-      return session ? json({ user: { id: session.id, email: session.email } }) : json({ error: 'Please sign in.' }, 401, { 'Set-Cookie': cookie(request, '', 0) });
+      return session ? json({ user: { id: session.id, email: session.email } }) : json(await signedOut(request, env), 401, { 'Set-Cookie': cookie(request, '', 0) });
+    }
+    if (request.method === 'GET' && path === '/api/auth/devices') {
+      const session = await currentSession(request, env);
+      if (!session) return json(await signedOut(request, env), 401);
+      const rows = await env.DB.prepare(`SELECT s.id, s.name, s.created_at, s.last_active_at FROM browser_sessions s JOIN users u ON u.id = s.user_id
+        WHERE s.user_id = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND s.token_version = u.token_version ORDER BY s.last_active_at DESC`)
+        .bind(session.id, Date.now()).all<{ id: string; name: string; created_at: number; last_active_at: number }>();
+      return json({ devices: rows.results.map((row) => ({ id: row.id, kind: 'browser', name: deviceName(row.name),
+        createdAt: row.created_at, lastActiveAt: row.last_active_at, current: row.id === session.session_id })) });
     }
     if (request.method !== 'POST') return json({ error: 'Route not found' }, 404);
     const db = env.DB;
@@ -211,6 +247,37 @@ export async function handleAuth(request: Request, env: Env, context?: Pick<Exec
       return json({ message: 'Signed out.' }, 200, { 'Set-Cookie': cookie(request, '', 0) });
     }
     const body = await bodyOf(request);
+    if (path === '/api/auth/devices/revoke') {
+      const session = await currentSession(request, env);
+      if (!session) return json(await signedOut(request, env), 401);
+      if (typeof body.id !== 'string' || body.id.length > 64) throw new AuthError('Choose a device to sign out.', 400);
+      if (body.id === session.session_id) throw new AuthError('Use Sign out to sign out of this browser.', 400);
+      // Scoped to the caller, so another account's session ids are never revealed or touched.
+      const result = await db.prepare('UPDATE browser_sessions SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL')
+        .bind(Date.now(), body.id, session.id).run();
+      if (!result.meta.changes) throw new AuthError('That device is already signed out.', 404);
+      return json({ message: 'Signed out of that device.' });
+    }
+    if (path === '/api/auth/delete-account') {
+      const session = await currentSession(request, env);
+      if (!session) return json(await signedOut(request, env), 401);
+      if (body.confirmation !== DELETE_CONFIRMATION) throw new AuthError(`Type ${DELETE_CONFIRMATION} to confirm.`, 400);
+      if (typeof body.password !== 'string' || !body.password) throw new AuthError('Enter your password.', 400);
+      if (await limited(db, 'delete_failed', 'email', session.email, 5, 15)) throw new AuthError('Too many attempts. Please try again later.', 429);
+      const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(session.id).first<User>();
+      if (!user || !await bcrypt.compare(body.password, user.password_hash)) {
+        await event(db, request, 'delete_failed', session.email);
+        throw new AuthError('That password isn’t right.', 401);
+      }
+      // Immediate and complete (D29): sessions, email tokens and every synced record cascade from
+      // the user row; auth events and lockouts are keyed by address, so they go explicitly.
+      await db.batch([
+        db.prepare('DELETE FROM auth_events WHERE email = ?').bind(user.email),
+        db.prepare('DELETE FROM login_attempts WHERE email = ?').bind(user.email),
+        db.prepare('DELETE FROM users WHERE id = ?').bind(user.id),
+      ]);
+      return json({ message: 'Your account was deleted.' }, 200, { 'Set-Cookie': cookie(request, '', 0) });
+    }
     if (path === '/api/auth/register') {
       signingKey(env);
       const email = emailAddress(body.email);

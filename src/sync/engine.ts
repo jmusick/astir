@@ -8,7 +8,7 @@ import type { SyncRecord } from './types';
 // local store before any network call, and sync runs in the background. It knows nothing about
 // IndexedDB, SQLite or fetch; those come in through SyncStore and SyncTransport.
 
-export type SyncState = 'idle' | 'syncing' | 'synced' | 'offline' | 'rejected' | 'signed-out';
+export type SyncState = 'idle' | 'syncing' | 'synced' | 'offline' | 'rejected' | 'signed-out' | 'account-deleted';
 export interface SyncStatus {
   state: SyncState;
   /** The server's message for a rejected push, or a local storage problem. */
@@ -198,7 +198,10 @@ export class SyncEngine {
       return !rejected;
     } catch (error) {
       if (this.closed) return false;
-      if (error instanceof SyncRequestError && error.status === 401) {
+      if (error instanceof SyncRequestError && error.status === 401 && error.reason === 'account-deleted') {
+        // Nothing here can sync anywhere any more; the UI explains and clears this device (D29).
+        this.setStatus('account-deleted', 'This account was deleted, so Astir is removing its data from this device.');
+      } else if (error instanceof SyncRequestError && error.status === 401) {
         this.setStatus('signed-out', 'You were signed out. Your changes are kept on this device until you sign in again.');
       } else if (!(error instanceof SyncRequestError)) {
         // A local save failed, not the network; persist() already shows that. Retry later.

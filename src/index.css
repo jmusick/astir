@@ -144,10 +144,6 @@ textarea { width: 100%; font: inherit; resize: vertical; border: 1px solid var(-
 .resets { color: var(--muted); font-weight: 600; }
 .notice.zone p, .notice.reminders p { margin: 0; }
 .notice.zone p + p, .notice.reminders p + p { margin-top: .6rem; }
-.day-settings { margin-top: 1.5rem; color: var(--muted); font-size: .9rem; }
-.day-settings summary { cursor: pointer; font-weight: 600; width: fit-content; }
-.day-settings form { margin-top: .75rem; max-width: 22rem; color: var(--text); }
-.day-settings .hint { margin: 0; }
 select { width: 100%; font: inherit; font-weight: 400; background: var(--bg); color: var(--text); padding: .6rem; border: 1px solid var(--muted); border-radius: .5rem; }
 .actions { display: flex; gap: .25rem; opacity: .6; }
 .item:hover .actions, .item:focus-within .actions { opacity: 1; }
@@ -233,3 +229,22 @@ button.quiet.danger { background: var(--danger); border-color: var(--danger); co
 .item.past .mark, .item.past .title { cursor: default; }
 .item.past.done > .item-main .title { color: var(--text); text-decoration: none; }
 .item.past:not(.done) > .item-main .title { color: var(--muted); }
+
+/* Settings (#10) */
+.settings-link { color: var(--text); font-weight: 600; text-decoration: none; padding: .4rem .2rem; }
+.settings-link[aria-current='page'] { text-decoration: underline; text-underline-offset: .25em; }
+.settings-screen { margin-top: 2rem; }
+.settings-screen h1 { margin: 0 0 .25rem; }
+.settings-section { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.settings-section h2 { margin: 0 0 .5rem; font-size: 1.1rem; }
+.settings-section p { margin: 0 0 .75rem; }
+.settings-form { display: grid; gap: .9rem; max-width: 22rem; }
+.settings-form .hint { margin: 0; }
+.devices { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.devices li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 0; border-bottom: 1px solid var(--line); }
+.devices li > div { display: grid; gap: .2rem; min-width: 0; }
+.devices .hint { margin: 0; color: var(--muted); }
+.this-device { color: var(--muted); font-weight: 600; }
+.danger-zone h2 { color: var(--danger); }
+button.danger { background: var(--danger); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

@@ -4,6 +4,11 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- A Settings page, linked at the top of every screen. Change your time zone and when your day resets there; the change starts at your next reset. See every browser you're signed in on, with when each was last used, and sign any of them out. Download everything as a JSON file: every list, task, habit, checkmark and day of history. You can also delete your account. That takes your password, happens right away and removes everything. Your other devices clear their copy the next time they connect and tell you why.
+- If a device is signed out from Settings, it keeps any changes it hadn't synced until you sign in there again, and offers to download a copy of them first.
+
 ## [0.9.0] - 2026-11-16
 
 ### Added

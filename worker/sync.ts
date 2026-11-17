@@ -1,4 +1,4 @@
-import { currentSession } from './auth';
+import { currentSession, signedOut } from './auth';
 import { isAllowedOrigin } from './headers';
 
 export const SYNC_LIMITS = { lists: 100, openItems: 10_000, subtasks: 100, daySettings: 1_000, title: 500, notes: 20_000, changes: 500, bytes: 1_048_576 } as const;
@@ -150,7 +150,7 @@ export async function handleSync(request: Request, env: Env): Promise<Response> 
     if (request.headers.get('X-Astir-Client') !== 'web') throw new SyncError('Use the Astir web client.', 403);
     if (request.method !== 'GET' && !isAllowedOrigin(request.headers.get('Origin'), request, env)) throw new SyncError('Untrusted request origin.', 403);
     const session = await currentSession(request, env);
-    if (!session) throw new SyncError('Please sign in.', 401);
+    if (!session) return json(await signedOut(request, env), 401);
     const url = new URL(request.url);
     if (request.method === 'POST' && url.pathname === '/api/sync/push') {
       const body = await bodyOf(request); fields(body, ['changes']);

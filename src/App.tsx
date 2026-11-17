@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { authApi } from './authApi';
+import { authApi, AuthApiError } from './authApi';
+import { databaseName } from './sync/indexedDbStore';
 import type { Account } from './authApi';
 import { forgetAccount, rememberAccount, rememberedAccount } from './rememberedAccount';
 import { isLinkMode } from './authMode';
@@ -23,7 +24,13 @@ export default function App() {
       if (controller.signal.aborted) return;
       // A rejected session (401) shows the forms; that account's local data waits for its next sign-in.
       // Offline or a server outage: open the last account's local data instead (local-first).
-      if ((error as { status?: number }).status === 401) forgetAccount();
+      if (error instanceof AuthApiError && error.reason === 'account-deleted') {
+        // Deleted on another device while this one was away: clear its copy and say why (D29).
+        const gone = rememberedAccount();
+        forgetAccount();
+        if (gone) { try { indexedDB.deleteDatabase(databaseName(gone.id)); } catch { /* No IndexedDB. */ } }
+        setNotice('This account was deleted, so Astir removed its data from this device.');
+      } else if ((error as { status?: number }).status === 401) forgetAccount();
       else setUser(rememberedAccount());
     })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -38,7 +45,7 @@ export default function App() {
   }
   // Each account gets its own engine and local database (D45); the key keeps them apart.
   if (user && !isLinkMode) {
-    return <TodayScreen key={user.id} account={user} onSignedOut={() => { setUser(null); setNotice('You’re signed out.'); }} />;
+    return <TodayScreen key={user.id} account={user} onSignedOut={(message = 'You’re signed out.') => { history.replaceState(null, '', '/'); setUser(null); setNotice(message); }} />;
   }
   return <AuthScreen notice={notice} />;
 }

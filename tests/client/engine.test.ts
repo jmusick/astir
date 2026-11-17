@@ -225,6 +225,15 @@ describe('sync', () => {
     expect(engine.getSnapshot().status).toMatchObject({ state: 'signed-out', pending: 1 });
   });
 
+  it('reports an account deleted elsewhere so the device can clear itself', async () => {
+    const server = new FakeServer();
+    server.fail = new SyncRequestError('Please sign in.', 401, 'account-deleted');
+    const { engine } = await device(server);
+    await engine.change(newTodayTask('t', 'Call', DAY, 1));
+    await engine.sync();
+    expect(engine.getSnapshot().status.state).toBe('account-deleted');
+  });
+
   it('keeps an edit made during a push pending for the next one', async () => {
     const server = new FakeServer();
     const transport = server.transport();

@@ -8,7 +8,8 @@ export interface SyncTransport {
 
 /** A failed sync request. status 0 means the network itself failed. */
 export class SyncRequestError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
+  /** reason is "account-deleted" on a 401 when the account no longer exists (D29). */
+  constructor(message: string, readonly status: number, readonly reason?: string) { super(message); }
 }
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
@@ -28,7 +29,8 @@ export function httpTransport(fetcher: Fetch = (input, init) => fetch(input, ini
     }
     const data = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) {
-      throw new SyncRequestError(typeof data.error === 'string' ? data.error : `Sync failed (${response.status}).`, response.status);
+      throw new SyncRequestError(typeof data.error === 'string' ? data.error : `Sync failed (${response.status}).`, response.status,
+        typeof data.reason === 'string' ? data.reason : undefined);
     }
     return data;
   }
