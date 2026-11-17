@@ -4,6 +4,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-16
+
 ### Added
 
 - Reminders now pop up while Astir is open in a browser tab. A today-only task reminds you at its time on its day, a habit on each day it's scheduled, and a list task at its date and time. Click the notification to go straight to the item. Close it and your other devices won't show it too, unless they already did. A reminder doesn't come back once a task rolls over or is overdue, and one whose time passed while no tab was open isn't shown later. Astir asks to show notifications when you set a reminder or turn them on from Today, not when the page loads. Reminders with the browser closed come with the Windows app.
@@ -57,7 +59,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 - Astir has a home at [astir.stonedragonmedia.com](https://astir.stonedragonmedia.com). There's nothing to use yet: the page is a placeholder while the daily list is built.
 - Astir's code is available under the Astir Non-Commercial License: free for personal and non-commercial use.
 
-[Unreleased]: https://github.com/jmusick/astir/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/jmusick/astir/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/jmusick/astir/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/jmusick/astir/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/jmusick/astir/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/jmusick/astir/compare/v0.5.0...v0.6.0
