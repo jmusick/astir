@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { cleanTitle, TITLE_MAX } from '../sync/daily';
+import { carriedLabel, cleanTitle, TITLE_MAX } from '../sync/daily';
 import type { ItemData, SyncRecord } from '../sync/types';
 
 interface Props {
@@ -10,9 +10,11 @@ interface Props {
   onToggle: (checked: boolean) => void;
   onRename: (title: string) => void;
   onDelete: () => void;
+  /** A today-only task's day count; 2 or more shows the carried tag (D22). */
+  dayCount?: number;
 }
 
-export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete }: Props) {
+export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete, dayCount = 1 }: Props) {
   const title = item.data!.title;
   const id = useId();
   const [editing, setEditing] = useState(false);
@@ -47,6 +49,7 @@ export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete
       ? <input className="rename" aria-label={`Rename “${title}”`} value={draft} maxLength={TITLE_MAX} autoFocus
           onChange={(e) => setDraft(e.target.value)} onKeyDown={keys} onBlur={() => finish(true)} />
       : <label className="title" htmlFor={`${id}-check`}>{title}</label>}
+    {!editing && dayCount > 1 && <span className="carried" title={`Carried over from ${item.data!.originalDay}`}>{carriedLabel(dayCount)}</span>}
     {!editing && <div className="actions">
       <button type="button" className="icon" aria-label={`Rename “${title}”`} title="Rename"
         onClick={() => { setDraft(title); open.current = true; setEditing(true); setConfirming(false); }}>✎</button>

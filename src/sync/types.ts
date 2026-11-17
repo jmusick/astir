@@ -1,5 +1,5 @@
 // The wire and storage shape of a sync record. docs/sync-api.md owns the contract.
-export type Entity = 'list' | 'item' | 'schedule' | 'completion';
+export type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day';
 
 export interface SyncRecord<D = unknown> {
   entity: Entity;
@@ -28,6 +28,8 @@ export interface ItemData {
 }
 export interface ScheduleData { itemId: string; effectiveDay: string; weekdays: number[] }
 export interface CompletionData { itemId: string; day: string | null; completed: boolean }
+/** The account's day boundary from effectiveDay on: an IANA time zone and a day-start hour (D6, D34). */
+export interface DayData { effectiveDay: string; timeZone: string; startHour: number }
 
 export const recordKey = (entity: Entity, id: string) => `${entity}/${id}`;
 export const keyOf = (record: Pick<SyncRecord, 'entity' | 'id'>) => recordKey(record.entity, record.id);

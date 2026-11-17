@@ -30,7 +30,7 @@ The response is `{ "accepted": 1, "serverTime": 1794848400000 }`. `accepted` cou
 
 ### Record envelope and conflicts
 
-- `entity`: `list`, `item`, `schedule` or `completion`.
+- `entity`: `list`, `item`, `schedule`, `completion` or `day`.
 - List/item `id`: client-generated, 1–128 ASCII letters, digits, hyphens or underscores. UUIDs work. IDs are scoped to account and entity.
 - `editedAt`: nonnegative, safe integer epoch milliseconds, within JavaScript's date range. More than five minutes ahead of server time is clamped to server time. Past timestamps are accepted for long offline gaps.
 - `deleted`: required boolean. A delete may omit `data`; its supplied data is ignored. Existing archive data is retained.
@@ -46,6 +46,7 @@ The latest client edit timestamp wins per record. Equal timestamps keep the firs
 | `item` | `kind`: `habit`, `today` or `task`; `title` (required); `notes` (default empty); `position` (default 0); nullable `listId`, `parentId`, `originalDay`, `createdDay`, `dueDay`, `reminder` |
 | `schedule` | `itemId`, `effectiveDay`, `weekdays`: distinct integers 0 (Sunday) to 6 (Saturday), at least one; all seven means every day |
 | `completion` | `itemId`, nullable `day`, `completed` (required boolean) |
+| `day` | `effectiveDay`, `timeZone` (an IANA zone such as `America/New_York`), `startHour` (whole hour, 0–23) |
 
 `position` is finite, with absolute value at most `Number.MAX_SAFE_INTEGER`. Titles must contain non-whitespace text. Text length limits use JavaScript string length (UTF-16 code units). Dates are valid `YYYY-MM-DD` calendar days from year 0001 to 9999.
 
@@ -54,8 +55,9 @@ The latest client edit timestamp wins per record. Equal timestamps keep the firs
 - A **named-list task** requires `listId`. It has no creation or original day. Its optional due date is `dueDay`. Its reminder is an optional UTC instant formatted `YYYY-MM-DDTHH:mm:00.000Z`.
 - A task's `parentId` may reference a top-level task of the same kind, list and original day. Subtasks cannot have their own subtasks. They have independent completion records; completing all children does not complete the parent.
 - Item `kind`, `listId`, `parentId`, `originalDay` and `createdDay` are immutable. This API does not support moving or converting items.
-- A schedule references a habit. Its ID is **`itemId:effectiveDay`**. The first version takes effect on the habit's creation day; the client submits later versions effective from the next account reset (D34/D40). History selects the latest version effective on or before the day being viewed. The server stores these versions separately and rejects versions before the creation day; computing the account's current day and next reset belongs to the client engine (#4).
+- A schedule references a habit. Its ID is **`itemId:effectiveDay`**. The first version takes effect on the habit's creation day; the client submits later versions effective from the next account reset (D34/D40). History selects the latest version effective on or before the day being viewed. The server stores these versions separately and rejects versions before the creation day; computing the account's current day and next reset belongs to the client (`src/sync/day.ts`).
 - A habit completion's ID is **`itemId:YYYY-MM-DD`**, with that day in `data.day`, on or after creation. A task/subtask completion's ID is **`itemId:task`**, with null/omitted `data.day`. These semantic IDs ensure two devices create one record for the same completion.
+- **Day settings** are the account's time zone and day-start hour (D6). Each version's ID is its **`effectiveDay`**; it governs from that day until a later version takes over. The client writes the first version as `0001-01-01` and later changes effective from the next account reset (D34), so a day is never split or counted twice.
 
 Deleting a list, item or schedule does not cascade through sync records. Parents retain their archived data so offline dependent records remain valid. Clients must preserve and reconcile children of archived parents; hiding a parent must not silently discard them. Account deletion, by contrast, cascades through all the account's records. Tombstones and completion history are retained without expiry.
 
@@ -78,7 +80,7 @@ The server allocates monotonically increasing revisions transactionally, indepen
 
 ## Limits and errors
 
-Approved for D31: 100 active lists, 10,000 open items per account (habits always count; tasks/subtasks count unless their live completion says completed), 100 active subtasks per parent, 500 title characters, 20,000 note characters, and at most 500 changes / 1 MiB of streamed UTF-8 request bytes per push. Deleted records do not count. Completed tasks and history have no count limit. Quotas are checked against the final batch state, so completing/deleting one item and adding another works at the limit.
+Approved for D31: 100 active lists, 10,000 open items per account (habits always count; tasks/subtasks count unless their live completion says completed), 100 active subtasks per parent, 1,000 live day-setting versions, 500 title characters, 20,000 note characters, and at most 500 changes / 1 MiB of streamed UTF-8 request bytes per push. Deleted records do not count. Completed tasks and history have no count limit. Quotas are checked against the final batch state, so completing/deleting one item and adding another works at the limit.
 
 Malformed data or references return 400, missing/invalid/revoked sessions 401, client/origin failures 403, count quotas 409, request size/change-count overflow 413, wrong content type 415, and temporary failures 503. All errors have `{ "error": "clear message" }`. A rejected push commits nothing. Clients keep rejected work locally, show the message, and let the user trim or correct it before retrying. SQL, task contents and credentials are not logged by the sync handler.
 

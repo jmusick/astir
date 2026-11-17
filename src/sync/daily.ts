@@ -1,4 +1,4 @@
-import { weekdayOf } from './day';
+import { daysBetween, weekdayOf } from './day';
 import { recordKey } from './types';
 import type { CompletionData, ItemData, ScheduleData, SyncRecord } from './types';
 
@@ -7,6 +7,7 @@ import type { CompletionData, ItemData, ScheduleData, SyncRecord } from './types
 
 export const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 export const TITLE_MAX = 500;
+const CLOCK_SLACK_MS = 5 * 60_000;
 /** Monday first, as most people read a week. Values are 0 (Sunday) to 6 (Saturday). */
 export const WEEK = [1, 2, 3, 4, 5, 6, 0];
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -20,6 +21,8 @@ export function describeDays(weekdays: readonly number[]): string {
 export interface TodayEntry {
   item: SyncRecord<ItemData>;
   done: boolean;
+  /** Which day of its life a today-only task is on: 1 on its original day, 2 after one rollover (D41). */
+  dayCount?: number;
 }
 export interface TodayView {
   day: string;
@@ -68,7 +71,19 @@ export function isCompleted(records: ReadonlyMap<string, SyncRecord>, completion
 const byPosition = (a: TodayEntry, b: TodayEntry) =>
   (a.item.data!.position ?? 0) - (b.item.data!.position ?? 0) || a.item.id.localeCompare(b.item.id);
 
-export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string): TodayView {
+/** "2nd day", "3rd day", "11th day", "21st day" */
+export function carriedLabel(dayCount: number): string {
+  const tens = dayCount % 100;
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][dayCount % 10] ?? 'th';
+  return `${dayCount}${suffix} day`;
+}
+
+/**
+ * What Today shows on a day. Habits uncheck because their completions are per day. Unfinished
+ * today-only tasks roll forward from their original day (D5); a finished one stays on the day it
+ * was checked. `dayOf` maps an edit time to its account day, which dates a task's checkmark.
+ */
+export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string, dayOf: (editedAt: number) => string): TodayView {
   const weekday = weekdayOf(day);
   const habits: TodayEntry[] = [];
   const tasks: TodayEntry[] = [];
@@ -85,9 +100,16 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string)
       habits.push({ item, done: isCompleted(records, habitCompletionId(item.id, day)) });
     } else if (data.kind === 'today' && !data.parentId) {
       isNew = false;
-      // Rollover of earlier unfinished tasks arrives with #5.
-      if (data.originalDay !== day) continue;
-      tasks.push({ item, done: isCompleted(records, taskCompletionId(item.id)) });
+      const original = data.originalDay;
+      if (!original || original > day) continue;
+      const completion = live<CompletionData>(records, recordKey('completion', taskCompletionId(item.id)));
+      const checked = completion?.data?.completed === true ? completion.editedAt : null;
+      // Checked before this day: it was finished on an earlier day and doesn't roll over.
+      if (checked !== null && original < day && dayOf(checked) < day) continue;
+      // Edit stamps may run a few minutes ahead (D32 clamps at five), so a check just before the
+      // reset still counts for the day it was made.
+      const done = checked !== null && dayOf(checked - CLOCK_SLACK_MS) <= day;
+      tasks.push({ item, done, dayCount: daysBetween(original, day) + 1 });
     }
   }
   habits.sort(byPosition); tasks.sort(byPosition);

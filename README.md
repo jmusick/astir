@@ -8,7 +8,7 @@ This README owns what Astir is and how to set it up and use it. [AGENTS.md](AGEN
 
 ## Status
 
-Early. Web accounts support sign-up, email verification, sign-in, password reset and sign-out. The server stores lists, items, versioned recurring schedules and completions behind an authenticated [sync API](docs/sync-api.md). The client sync engine, daily list UI and native apps are still being built. The v1 design is settled in the [spec](docs/specs/2026-11-16-astir-v1.md) and split into [issues #1 to #15](https://github.com/jmusick/astir/issues) in build order.
+Early. Web accounts support sign-up, email verification, sign-in, password reset and sign-out. The server stores lists, items, versioned recurring schedules, completions and the account's day settings behind an authenticated [sync API](docs/sync-api.md). The web Today view runs offline-first on the client sync engine, resets at your day-start hour and rolls unfinished tasks over. Named lists, history, Settings and the native apps are still being built. The v1 design is settled in the [spec](docs/specs/2026-11-16-astir-v1.md) and split into [issues #1 to #15](https://github.com/jmusick/astir/issues) in build order.
 
 ## Planned for v1
 

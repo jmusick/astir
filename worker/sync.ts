@@ -1,9 +1,10 @@
 import { currentSession } from './auth';
 import { isAllowedOrigin } from './headers';
 
-export const SYNC_LIMITS = { lists: 100, openItems: 10_000, subtasks: 100, title: 500, notes: 20_000, changes: 500, bytes: 1_048_576 } as const;
+export const SYNC_LIMITS = { lists: 100, openItems: 10_000, subtasks: 100, daySettings: 1_000, title: 500, notes: 20_000, changes: 500, bytes: 1_048_576 } as const;
 const FUTURE_MS = 5 * 60_000;
-type Entity = 'list' | 'item' | 'schedule' | 'completion';
+type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day';
+const ENTITIES: string[] = ['list', 'item', 'schedule', 'completion', 'day'];
 type Data = Record<string, string | number | boolean | null | number[]>;
 type Change = { entity: Entity; id: string; editedAt: number; deleted: boolean; data: Data | null };
 type Row = { entity: Entity; id: string; edited_at: number; deleted: number; data: string | null; revision: number };
@@ -33,6 +34,12 @@ const time = (value: unknown): string => {
   if (typeof value !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) throw new SyncError('Use an HH:mm reminder time.');
   return value;
 };
+const timeZone = (value: unknown): string => {
+  let valid = typeof value === 'string' && /^[A-Za-z0-9_+\-/]{1,64}$/.test(value);
+  if (valid) { try { new Intl.DateTimeFormat('en-US', { timeZone: value as string }); } catch { valid = false; } }
+  if (!valid) throw new SyncError('Use an IANA time zone such as America/New_York.');
+  return value as string;
+};
 function fields(value: Record<string, unknown>, allowed: string[]) {
   if (Object.keys(value).some((key) => !allowed.includes(key))) throw new SyncError('Unknown field in sync data.');
 }
@@ -49,6 +56,11 @@ function dataOf(entity: Entity, value: unknown): Data {
       throw new SyncError('Choose distinct weekdays from 0 (Sunday) to 6 (Saturday).');
     }
     return { itemId: id(d.itemId), effectiveDay: day(d.effectiveDay), weekdays: [...d.weekdays].sort() };
+  }
+  if (entity === 'day') {
+    fields(d, ['effectiveDay', 'timeZone', 'startHour']);
+    if (!Number.isInteger(d.startHour) || (d.startHour as number) < 0 || (d.startHour as number) > 23) throw new SyncError('startHour must be a whole hour from 0 to 23.');
+    return { effectiveDay: day(d.effectiveDay), timeZone: timeZone(d.timeZone), startHour: d.startHour as number };
   }
   if (entity === 'completion') {
     fields(d, ['itemId', 'day', 'completed']);
@@ -81,7 +93,7 @@ function position(value: unknown): number {
 function changeOf(value: unknown, now: number): Change {
   const c = object(value);
   fields(c, ['entity', 'id', 'editedAt', 'deleted', 'data']);
-  if (typeof c.entity !== 'string' || !['list', 'item', 'schedule', 'completion'].includes(c.entity)) throw new SyncError('Unknown entity.');
+  if (typeof c.entity !== 'string' || !ENTITIES.includes(c.entity)) throw new SyncError('Unknown entity.');
   if (typeof c.editedAt !== 'number' || !Number.isSafeInteger(c.editedAt) || c.editedAt < 0 || c.editedAt > 8_640_000_000_000_000) throw new SyncError('editedAt must be a nonnegative epoch millisecond timestamp.');
   if (typeof c.deleted !== 'boolean') throw new SyncError('deleted must be true or false.');
   const entity = c.entity as Entity;
@@ -98,6 +110,10 @@ function changeOf(value: unknown, now: number): Change {
       key = c.id;
     }
     if (c.id !== key) throw new SyncError('Use itemId:effectiveDay for schedules and itemId:day (or itemId:task) for completions.');
+  } else if (entity === 'day') {
+    // Day settings are versioned by the day they take effect (D34), one record per day.
+    key = data ? data.effectiveDay as string : day(c.id);
+    if (c.id !== key) throw new SyncError('Use the effective day as the ID of day settings.');
   } else key = id(c.id);
   return { entity, id: key, editedAt: c.editedAt > now + FUTURE_MS ? now : c.editedAt, deleted: c.deleted, data };
 }
@@ -169,7 +185,7 @@ export async function handleSync(request: Request, env: Env): Promise<Response> 
     const message = error instanceof Error ? error.message : '';
     // Only our fixed trigger messages may leave the server. Never expose SQL or task contents.
     const known = ['You have reached 100 lists.', 'You have reached 10000 open items.', 'You have reached 100 subtasks per task.',
-      'Invalid record reference.', 'Item identity cannot change.'];
+      'You have reached 1000 day-setting changes.', 'Invalid record reference.', 'Item identity cannot change.'];
     const safe = known.find((value) => message.includes(value));
     if (safe) return json({ error: safe }, safe.startsWith('You have reached') ? 409 : 400);
     console.warn('[sync] request failed');

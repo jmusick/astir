@@ -19,6 +19,8 @@ export interface SyncStatus {
 export interface Snapshot {
   records: ReadonlyMap<string, SyncRecord>;
   status: SyncStatus;
+  /** Server time minus this device's clock at the last pull, or null before one. */
+  clockSkewMs: number | null;
 }
 export interface EngineOptions {
   now?: () => number;
@@ -96,6 +98,7 @@ export class SyncEngine {
   private attempt = 0;
   private closed = false;
   private saveFailed = false;
+  private clockSkewMs: number | null = null;
   private readonly now: () => number;
   private readonly options: Required<Omit<EngineOptions, 'now'>>;
 
@@ -270,6 +273,7 @@ export class SyncEngine {
       if (this.closed) return;
       const page = await this.transport.pull(this.cursor);
       if (this.closed) return;
+      if (page.serverTime > 0) this.clockSkewMs = page.serverTime - this.now();
       const put: SyncRecord[] = [];
       const addPending: string[] = [];
       const removePending: string[] = [];
@@ -331,7 +335,7 @@ export class SyncEngine {
   private build(): Snapshot {
     // A failed local save stays visible until a later save succeeds.
     const message = this.status.message || (this.saveFailed ? 'This device couldn’t save your latest change. Keep this tab open until it syncs.' : '');
-    return { records: new Map(this.records), status: { ...this.status, message, pending: this.pending.size } };
+    return { records: new Map(this.records), status: { ...this.status, message, pending: this.pending.size }, clockSkewMs: this.clockSkewMs };
   }
 
   private publish() {

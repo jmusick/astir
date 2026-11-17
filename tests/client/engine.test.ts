@@ -18,6 +18,7 @@ class FakeServer {
   pulls: string[] = [];
   fail: SyncRequestError | null = null;
   pageSize = 100;
+  serverTime = 0;
   /** Like the Worker: completions must reference an item that has data. */
   checkReferences = false;
 
@@ -50,7 +51,7 @@ class FakeServer {
         const page = rows.slice(0, this.pageSize);
         return {
           changes: page.map((row) => { const record: SyncRecord & { revision?: number } = structuredClone(row); delete record.revision; return record; }),
-          cursor: String(page.at(-1)?.revision ?? cursor), hasMore: rows.length > this.pageSize, serverTime: 0,
+          cursor: String(page.at(-1)?.revision ?? cursor), hasMore: rows.length > this.pageSize, serverTime: this.serverTime,
         };
       },
     };
@@ -66,6 +67,20 @@ async function device(server: FakeServer, store = new MemoryStore(), extra: Engi
 const item = (engine: SyncEngine, id: string) => engine.getSnapshot().records.get(`item/${id}`) as SyncRecord<ItemData>;
 
 afterEach(() => { vi.useRealTimers(); });
+
+describe('clock skew', () => {
+  it('measures the device clock against server time at each pull', async () => {
+    const server = new FakeServer();
+    const { engine } = await device(server);
+    expect(engine.getSnapshot().clockSkewMs).toBeNull();
+    server.serverTime = clock + 10 * 60_000;
+    await engine.sync();
+    expect(engine.getSnapshot().clockSkewMs).toBe(10 * 60_000);
+    server.serverTime = 0; // An old server without serverTime leaves the last reading alone.
+    await engine.sync();
+    expect(engine.getSnapshot().clockSkewMs).toBe(10 * 60_000);
+  });
+});
 
 describe('local-first changes', () => {
   it('updates the snapshot at once and saves locally before any network call', async () => {
@@ -137,8 +152,8 @@ describe('sync', () => {
     await b.engine.change(setCompleted(item(b.engine, 'h'), DAY, true));
     await a.engine.sync(); await b.engine.sync(); await a.engine.sync();
     expect([...server.rows.keys()].filter((k) => k.startsWith('completion/'))).toEqual([`completion/h:${DAY}`]);
-    expect(todayView(a.engine.getSnapshot().records, DAY).done).toBe(1);
-    expect(todayView(b.engine.getSnapshot().records, DAY).done).toBe(1);
+    expect(todayView(a.engine.getSnapshot().records, DAY, () => DAY).done).toBe(1);
+    expect(todayView(b.engine.getSnapshot().records, DAY, () => DAY).done).toBe(1);
   });
 
   it('follows pages and stores each page with its cursor', async () => {
@@ -153,7 +168,7 @@ describe('sync', () => {
     expect(server.pulls.slice(-3)).toEqual(['0', '2', '4']);
     expect(b.store.writes - writes).toBe(3);
     expect(b.store.cursor).toBe('5');
-    expect(todayView(b.engine.getSnapshot().records, DAY).tasks).toHaveLength(5);
+    expect(todayView(b.engine.getSnapshot().records, DAY, () => DAY).tasks).toHaveLength(5);
   });
 
   it('keeps work local and retries with backoff while offline', async () => {

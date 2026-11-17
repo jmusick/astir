@@ -55,7 +55,7 @@ describe('sync engine against the Worker', () => {
 
     const phone = await device(cookie);
     await phone.sync();
-    const view = todayView(phone.getSnapshot().records, MONDAY);
+    const view = todayView(phone.getSnapshot().records, MONDAY, () => MONDAY);
     expect(view.habits.map((e) => e.item.id)).toEqual(['walk', 'read']);
     expect(view.tasks.map((e) => e.item.id)).toEqual(['call']);
     expect(view.done).toBe(2);

@@ -19,6 +19,8 @@ const today = (id = 'today', extra: Record<string, unknown> = {}, editedAt = NOW
 const habit = (id = 'habit', editedAt = NOW) => change('item', id, { kind: 'habit', title: 'Read', createdDay: DAY }, editedAt);
 const completion = (itemId: string, day: string | null = null, completed = true, editedAt = NOW) => change('completion', `${itemId}:${day ?? 'task'}`, { itemId, day, completed }, editedAt);
 const schedule = (day = DAY, weekdays = [0, 1, 2, 3, 4, 5, 6]) => change('schedule', `habit:${day}`, { itemId: 'habit', effectiveDay: day, weekdays });
+const daySettings = (effectiveDay = '0001-01-01', extra: Record<string, unknown> = {}, editedAt = NOW) =>
+  change('day', effectiveDay, { effectiveDay, timeZone: 'America/New_York', startHour: 4, ...extra }, editedAt);
 const deleted = (c: Change, editedAt = NOW): Change => ({ entity: c.entity, id: c.id, editedAt, deleted: true });
 async function session(user: string) {
   store.sqlite.prepare('INSERT INTO users (id, email, password_hash, email_verified, created_at) VALUES (?, ?, ?, 1, ?)').run(user, `${user}@example.test`, 'unused', NOW);
@@ -113,6 +115,37 @@ describe('sync model and conflicts', () => {
       expect((await push([c])).status, JSON.stringify(c)).toBe(400);
     }
     expect(count()).toBe(4);
+  });
+});
+
+describe('day settings', () => {
+  it('stores versions keyed by their effective day, with the latest edit winning', async () => {
+    expect((await push([daySettings(), daySettings(DAY, { startHour: 0, timeZone: 'Asia/Tokyo' })])).status).toBe(200);
+    expect((await push([daySettings(DAY, { startHour: 6 }, NOW + 1)])).status).toBe(200);
+    const days = (await pull()).changes.filter((c) => c.entity === 'day');
+    expect(days.map((c) => [c.id, c.data])).toEqual([
+      ['0001-01-01', { effectiveDay: '0001-01-01', timeZone: 'America/New_York', startHour: 4 }],
+      [DAY, { effectiveDay: DAY, timeZone: 'America/New_York', startHour: 6 }],
+    ]);
+    expect((await push([deleted(daySettings(DAY))])).status).toBe(200);
+  });
+
+  it('rejects bad zones, hours, IDs and fields', async () => {
+    for (const c of [daySettings(DAY, { timeZone: 'Mars/Olympus' }), daySettings(DAY, { timeZone: '../etc' }), daySettings(DAY, { timeZone: 5 }),
+      daySettings(DAY, { startHour: 24 }), daySettings(DAY, { startHour: 1.5 }), daySettings(DAY, { startHour: '4' }),
+      daySettings(DAY, { effectiveDay: '2026-11-17' }), daySettings(DAY, { extra: true }), daySettings('2026-02-30'),
+      { ...deleted(daySettings()), id: 'not-a-day' }]) {
+      expect((await push([c as Change])).status, JSON.stringify(c)).toBe(400);
+    }
+    expect(count()).toBe(0);
+  });
+
+  it('limits active day-setting versions', async () => {
+    const seed = store.sqlite.prepare("INSERT INTO sync_records (user_id, entity, id, edited_at, deleted, data) VALUES ('owner', 'day', ?, 1, 0, '{}')");
+    for (let i = 0; i < 1000; i++) seed.run(new Date(Date.UTC(2000, 0, 1) + i * 86_400_000).toISOString().slice(0, 10));
+    const response = await push([daySettings(DAY)]);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: 'You have reached 1000 day-setting changes.' });
   });
 });
 
