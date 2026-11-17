@@ -1,5 +1,5 @@
 // Astir's native shell. It hosts the shared React UI and TypeScript sync engine (D12, D13) and
-// adds only what a browser can't: the tray, start-at-login, the astir:// sign-in link, opening
+// adds only what a browser can't: the tray, start-at-login, the quick-add shortcut, the astir:// sign-in link, opening
 // the browser and the local SQLite file. Data logic never lives in Rust.
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -31,7 +31,9 @@ pub fn run() {
             .plugin(tauri_plugin_autostart::init(
                 tauri_plugin_autostart::MacosLauncher::LaunchAgent,
                 Some(vec![MINIMIZED_ARG]),
-            ));
+            ))
+            // The quick-add shortcut (D35); the UI registers and changes it.
+            .plugin(tauri_plugin_global_shortcut::Builder::new().build());
     }
 
     builder
@@ -84,12 +86,11 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing the window keeps Astir in the tray, syncing and reminding (D35). Quit is in the tray menu.
+            // Closing a window keeps Astir in the tray, syncing and reminding (D35); the quick-add
+            // box just hides until it's wanted again. Quit is in the tray menu.
             if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
+                api.prevent_close();
+                let _ = window.hide();
             }
         })
         .run(tauri::generate_context!())

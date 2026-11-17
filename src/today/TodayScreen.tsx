@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { authApi } from '../authApi';
 import type { Account } from '../authApi';
 import { forgetAccount } from '../rememberedAccount';
@@ -75,12 +75,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
     const timer = setTimeout(() => setFocus(null), 1_000);
     return () => clearTimeout(timer);
   }, [focus]);
-  // The tray's Quick add opens Today with the today-only box ready.
-  const quickAdd = useCallback(() => {
-    window.location.hash = todayHref;
-    setTimeout(() => document.querySelector<HTMLInputElement>('input[aria-label="New task for today"]')?.focus(), 50);
-  }, []);
-  useNativeShell(engine, view ? view.total - view.done : null, quickAdd);
+  useNativeShell(engine, view ? view.total - view.done : null, day);
   const permission = useNotificationPermission();
   const [skipPrompt, setSkipPrompt] = useState(false);
   const hasReminders = useMemo(() => {
