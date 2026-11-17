@@ -1,6 +1,6 @@
 # Sync API
 
-The server half of #3. The client sync engine and UI follow in #4. Apply migrations with `npm run db:migrate:local` before testing locally. No production migration or deployment is part of this change.
+The server half of #3. The client half is `src/sync/` (#4): `engine.ts` follows this contract, and the web Today view uses it through IndexedDB. Apply migrations with `npm run db:migrate:local` before testing locally. No production migration or deployment is part of this change.
 
 ## Authentication
 
@@ -84,7 +84,7 @@ Malformed data or references return 400, missing/invalid/revoked sessions 401, c
 
 ## Local test
 
-Run `npm run dev`, sign in at `http://localhost:5173`, then open the browser's JavaScript console. The daily-list UI is not part of this issue. These requests use the current cookie without exposing it. Paste the following helper and initial changes:
+Run `npm run dev`, sign in at `http://localhost:5173`, then open the browser's JavaScript console to exercise the API directly, below the Today view. These requests use the current cookie without exposing it. Paste the following helper and initial changes:
 
 ```js
 let api = async (path, changes) => {
