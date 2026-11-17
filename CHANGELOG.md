@@ -4,6 +4,10 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Check for updates from Settings in the Windows app. If a new version is available, Astir downloads it, installs it quietly and restarts automatically, without walking through setup again. Settings also tells you when you're up to date or an update couldn't be completed.
+
 ## [0.11.0] - 2026-11-17
 
 ### Changed

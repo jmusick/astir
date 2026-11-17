@@ -11,6 +11,7 @@ import { openInBrowser } from '../platform/appSignIn';
 import { isApp, webUrl } from '../platform/platform';
 import { StartAtLoginSetting } from '../platform/StartAtLogin';
 import QuickAddSetting from '../platform/QuickAddSetting';
+import UpdateSetting from '../platform/UpdateSetting';
 import AppearanceSetting from './AppearanceSetting';
 
 const CONFIRM_WORD = 'DELETE';
@@ -129,6 +130,8 @@ export default function SettingsScreen({ account, engine, versions, day, save, s
     <QuickAddSetting />
 
     <StartAtLoginSetting />
+
+    <UpdateSetting />
 
     <Devices />
 

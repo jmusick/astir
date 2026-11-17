@@ -100,7 +100,7 @@ Download `Astir_<version>_x64-setup.exe` from the latest [GitHub Release](https:
 
 The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC". Choose **More info**, then **Run anyway**. It lists the publisher as unknown because the file isn't signed, so only do this with an installer you downloaded from the release page above. That happens only when you install; updates install silently.
 
-Astir checks for updates when it starts and every four hours, and downloads a new version in the background. It installs and restarts by itself right after launch or once the window has been closed to the tray for ten minutes. Choose **Restart to update** to do it sooner. If an update fails, the installed version keeps running and the next check tries again.
+Astir checks for updates when it starts and every four hours, and downloads a new version in the background. It installs and restarts by itself right after launch or once the window has been closed to the tray for ten minutes. Choose **Restart to update** to do it sooner, or use **Settings → App updates → Check for updates** to check, download and install immediately. Both use the quiet updater without walking through setup again. If an update fails, the installed version keeps running and you can try again from Settings or wait for the next automatic check.
 
 ## Releases
 

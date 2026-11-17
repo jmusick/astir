@@ -6,7 +6,7 @@ import { installUpdate, onUpdatePhase, readyVersion, startUpdates, updatePhase }
 export default function UpdateBanner() {
   const phase = useSyncExternalStore(onUpdatePhase, updatePhase);
   useEffect(() => startUpdates(), []);
-  if (!isApp || phase === 'none') return null;
+  if (!isApp || (phase !== 'ready' && phase !== 'installing')) return null;
   return <div className="update-banner" role="status">
     {phase === 'installing' ? <span>Updating Astir…</span> : <>
       <span>Astir {readyVersion()} is ready. It installs by itself while Astir is in the tray.</span>
