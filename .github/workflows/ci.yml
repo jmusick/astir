@@ -19,12 +19,16 @@ jobs:
     uses: jmusick/ci/.github/workflows/baseline.yml@a8ac9c292577382c63e5a38af58d38a4cd6f8504 # v0.3.0
     with:
       node-version-file: .nvmrc
+      # High advisories are checked by npm run audit below, with one expiring dev-only exception.
+      # The shared baseline still checks critical advisories, lockfile integrity and signatures.
+      audit-level: critical
 
   web-app:
     name: Web app
     uses: jmusick/ci/.github/workflows/web-app.yml@a8ac9c292577382c63e5a38af58d38a4cd6f8504 # v0.3.0
     with:
       node-version-file: .nvmrc
+      setup-command: npm run audit
       lint-command: npm run lint
       test-command: npm test
       # Runs the type check (Worker types included) before building.

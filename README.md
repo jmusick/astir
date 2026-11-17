@@ -78,13 +78,22 @@ New passwords need at least eight characters and at most 72 UTF-8 bytes. Like Ta
 | `npm run dev` | Web UI and Worker together, with local D1 |
 | `npm run typecheck` | Generates the Worker's types (`worker-configuration.d.ts`) and type-checks everything |
 | `npm run lint` | ESLint |
-| `npm test` | Vitest |
+| `npm test` | Vitest and the dependency audit policy tests |
+| `npm run audit` | Dependency audit with the temporary, development-only exception documented below |
 | `npm run build` | Type check, then build the Worker and the static assets into `dist/` |
 | `npm run preview` | Build, then serve the production build locally |
 | `npm run db:migrate:local` / `db:migrate:remote` | Apply D1 migrations locally or to production |
 | `npm run deploy` | Build and deploy by hand (needs `wrangler login`); pushes to `main` normally do this |
 | `npm run app:dev` | The Windows app against `npm run dev` (Tauri; starts the dev server itself) |
 | `npm run app:build` | Build the Windows app and its installer into `src-tauri/target/release` |
+
+CI blocks high and critical dependency advisories. Until Dec. 1, 2026, `npm run audit` excepts only
+[GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) for transitive, development-only
+picomatch 4.0.7: no patched version is published, and Astir's tools use repository-owned glob patterns.
+Picomatch is absent from runtime dependencies. The exception fails if it enters runtime dependencies,
+its version changes, another advisory appears or the exception expires. Remove it when a patched
+release is available. The shared baseline retains its critical audit, lockfile and signature checks;
+the web job runs the stricter audit with this exception before lint, tests and build.
 
 ### The Windows app
 
