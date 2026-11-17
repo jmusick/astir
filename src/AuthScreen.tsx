@@ -4,6 +4,7 @@ import { authApi } from './authApi';
 import { isLinkMode as isLink, linkToken, mode, titles } from './authMode';
 import { newPasswordError, PASSWORD_HINT } from './passwordPolicy';
 import Turnstile from './Turnstile';
+import Brand from './ui/Brand';
 
 export default function AuthScreen({ notice = '' }: { notice?: string }) {
   const [email, setEmail] = useState('');
@@ -45,7 +46,7 @@ export default function AuthScreen({ notice = '' }: { notice?: string }) {
   }
 
   return <main className="auth">
-    <a className="brand" href="/">Astir<span className="brand-dot" aria-hidden="true">●</span></a>
+    <Brand href="/" />
     <p className="intro">A fresh start for your day.</p>
     <section className="account" aria-labelledby="account-heading">
       <h1 id="account-heading">{titles[mode]}</h1>

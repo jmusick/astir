@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { cleanTitle, removed, renamed, setCompleted, TITLE_MAX } from '../sync/daily';
 import { dueLabel, listView, newListTask, removedList, renamedList, tasksInList } from '../sync/lists';
@@ -101,6 +101,7 @@ function RenameListForm({ title, onDone }: { title: string; onDone: (title: stri
 }
 
 function AddListTaskForm({ listTitle, first, onAdd }: { listTitle: string; first: boolean; onAdd: (title: string, dueDay: string | null) => void }) {
+  const id = useId();
   const [title, setTitle] = useState('');
   const [dueDay, setDueDay] = useState('');
   const [error, setError] = useState('');
@@ -113,8 +114,9 @@ function AddListTaskForm({ listTitle, first, onAdd }: { listTitle: string; first
     setTitle(''); setDueDay('');
   }
   return <form className="add" onSubmit={submit} aria-label={`Add a task to ${listTitle}`}>
+    <label htmlFor={id}>New task in {listTitle}</label>
     <div className="add-row">
-      <input aria-label={`New task in ${listTitle}`} placeholder={first ? 'Your first task here' : `Add to ${listTitle}`} value={title} maxLength={TITLE_MAX}
+      <input id={id} placeholder={first ? 'Your first task here' : 'Task name'} value={title} maxLength={TITLE_MAX}
         onChange={(e) => setTitle(e.target.value)} />
       <button type="submit">Add</button>
     </div>

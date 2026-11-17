@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { cleanTitle, describeDays, EVERY_DAY, TITLE_MAX, WEEK } from '../sync/daily';
 import { weekdayOf } from '../sync/day';
@@ -7,6 +7,7 @@ const SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export function AddHabitForm({ day, first, onAdd }: { day: string; first: boolean; onAdd: (title: string, weekdays: number[]) => void }) {
+  const id = useId();
   const [title, setTitle] = useState('');
   const [everyDay, setEveryDay] = useState(true);
   const [chosen, setChosen] = useState<number[]>(() => [weekdayOf(day)]);
@@ -27,8 +28,9 @@ export function AddHabitForm({ day, first, onAdd }: { day: string; first: boolea
   const toggle = (d: number) => setChosen((days) => days.includes(d) ? days.filter((x) => x !== d) : [...days, d]);
 
   return <form className="add" onSubmit={submit} aria-label="Add a habit">
+    <label htmlFor={id}>New habit</label>
     <div className="add-row">
-      <input aria-label="New habit" placeholder={first ? 'Your first habit, like “Read 10 pages”' : 'Add a habit'} value={title} maxLength={TITLE_MAX}
+      <input id={id} placeholder={first ? 'Your first habit, like “Read 10 pages”' : 'Habit name'} value={title} maxLength={TITLE_MAX}
         onChange={(e) => setTitle(e.target.value)} />
       <button type="submit">Add</button>
     </div>
@@ -60,8 +62,9 @@ export function AddTaskForm({ first, onAdd }: { first: boolean; onAdd: (title: s
     setTitle('');
   }
   return <form className="add" onSubmit={submit} aria-label="Add a task for today">
+    <label htmlFor="today-task-title">New task for today</label>
     <div className="add-row">
-      <input aria-label="New task for today" placeholder={first ? 'One thing to finish today' : 'Add a task for today'} value={title} maxLength={TITLE_MAX}
+      <input id="today-task-title" aria-label="New task for today" placeholder={first ? 'One thing to finish today' : 'Add a task for today'} value={title} maxLength={TITLE_MAX}
         onChange={(e) => setTitle(e.target.value)} />
       <button type="submit">Add</button>
     </div>

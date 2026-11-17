@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { authApi } from '../authApi';
 import type { Account } from '../authApi';
 import { forgetAccount } from '../rememberedAccount';
-import { newHabit, newTodayTask, progressLabel, removed, renamed, setCompleted, todayView } from '../sync/daily';
+import { newHabit, newTodayTask, removed, renamed, setCompleted, todayView } from '../sync/daily';
 import { dueLabel, listSummaries, newList } from '../sync/lists';
 import { addDays, changeDaySettings, dayAt, dayLabel, dayVersions, deviceTimeZone, firstDaySettings, hourLabel, settingsOn } from '../sync/day';
 import type { DayData, ItemData, SyncRecord } from '../sync/types';
@@ -25,6 +25,8 @@ import ItemRow from './ItemRow';
 import ProgressRing from './ProgressRing';
 import SyncStatusLine from './SyncStatusLine';
 import { useSyncEngine } from './useSyncEngine';
+import Brand from '../ui/Brand';
+import Icon from '../ui/Icon';
 
 const SIGN_OUT_SYNC_MS = 8_000;
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: () => T): Promise<T> {
@@ -133,8 +135,11 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
   }
 
   return <main className="today">
+    <a className="skip-link" href="#workspace-content" onClick={(event) => { event.preventDefault(); document.getElementById('workspace-content')?.focus(); }}>Skip to content</a>
     <header className="topbar">
-      <a className="brand" href="/">Astir<span className="brand-dot" aria-hidden="true">●</span></a>
+      <Brand href={todayHref} />
+      {view && engine && <ListsNav route={route} lists={lists} todayLeft={view.total - view.done}
+        onCreate={(title) => { const id = crypto.randomUUID(); save(newList(id, title, Date.now())); window.location.hash = listHref(id); }} />}
       <div className="account-menu">
         <span className="who">{account.email}</span>
         <a className="settings-link" href={settingsHref} {...(route.screen === 'settings' ? { 'aria-current': 'page' as const } : {})}>Settings</a>
@@ -151,9 +156,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
           {' '}<button type="button" className="link" onClick={() => setSkipPrompt(true)}>Not now</button>
         </p>
       </div>}
-      <ListsNav route={route} lists={lists} todayLeft={view.total - view.done}
-        onCreate={(title) => { const id = crypto.randomUUID(); save(newList(id, title, Date.now())); window.location.hash = listHref(id); }} />
-      {route.screen === 'list'
+      <div id="workspace-content" tabIndex={-1}>{route.screen === 'list'
         ? <ListScreen key={route.listId} listId={route.listId} records={snapshot!.records} day={day} timeZone={zone} save={save} synced={everSynced} />
         : route.screen === 'settings'
         ? <SettingsScreen account={account} engine={engine} versions={versions} day={day} save={save}
@@ -163,12 +166,19 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
         ? <HistoryScreen records={snapshot!.records} today={day} versions={versions} requested={route.day} />
         : <>
           <section className="hero" aria-labelledby="today-heading">
-            <ProgressRing percent={view.percent} />
-            <div>
+            <div className="day-title">
               <p className="date">{dayLabel(day)}</p>
               <h1 id="today-heading">Today</h1>
-              <p className="tally">{view.total ? progressLabel(view) : 'Nothing planned yet'}<span className="resets"> · resets at {hourLabel(upcoming.startHour)}</span></p>
+              <button type="button" className="hero-add" onClick={() => document.getElementById('today-task-title')?.focus()}><Icon name="plus" />Add task</button>
+            </div>
+            <div className="daily-progress">
+              <ProgressRing percent={view.percent} done={view.done} total={view.total} />
+              <div className="progress-copy">
+              <h2>{view.total ? `${view.total - view.done} to go` : 'A fresh day'}</h2>
+              <p className="tally">{view.total ? `${view.done} done today` : 'Nothing planned yet'}</p>
+              <p className="resets">Resets at {hourLabel(upcoming.startHour)}</p>
               {view.total > 0 && view.done === view.total && <p className="cheer">Everything’s done. Enjoy the rest of your day.</p>}
+              </div>
             </div>
           </section>
           {versions.length > 0 && upcoming.timeZone !== device && !keepZone && <div className="notice zone" role="status">
@@ -185,7 +195,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
             <h2>Start your first day</h2>
             <p>Add a habit you want to keep, like a walk or ten minutes of reading, and one thing you’ll finish today. Check them off and watch the ring fill.</p>
           </section>}
-          <div className="panels">
+          <div className="panels today-panels">
             <section className="panel habits" aria-labelledby="habits-heading">
               <h2 id="habits-heading">Habits</h2>
               {view.habits.length > 0 ? <ul>
@@ -221,7 +231,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
               </ul>
             </section>}
           </div>
-        </>}
+        </>}</div>
       <SyncStatusLine status={snapshot!.status} localOnly={localOnly} onRetry={() => void engine.sync()}
         onExport={() => void exportNow(engine, account.email)} />
     </FocusItem>}

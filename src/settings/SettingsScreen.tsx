@@ -11,6 +11,7 @@ import { openInBrowser } from '../platform/appSignIn';
 import { isApp, webUrl } from '../platform/platform';
 import { StartAtLoginSetting } from '../platform/StartAtLogin';
 import QuickAddSetting from '../platform/QuickAddSetting';
+import AppearanceSetting from './AppearanceSetting';
 
 const CONFIRM_WORD = 'DELETE';
 
@@ -114,6 +115,8 @@ export default function SettingsScreen({ account, engine, versions, day, save, s
   return <section className="settings-screen" aria-labelledby="settings-heading">
     <h1 id="settings-heading">Settings</h1>
     <p className="intro">Signed in as {account.email}</p>
+
+    <AppearanceSetting />
 
     <section className="settings-section" aria-labelledby="day-heading">
       <h2 id="day-heading">When your day resets</h2>

@@ -20,6 +20,10 @@ Early. Web accounts support sign-up, email verification, sign-in, password reset
 - **Windows extras:** a tray icon with background running, start with Windows, a global quick-add hotkey, a taskbar badge, and silent auto-updates
 - **Accounts:** open sign-up with email verification, a devices list with revoke, JSON export, and account deletion
 
+## Appearance
+
+Astir uses the Signal design with Archivo type and a stepped logo. In Settings → Appearance, choose Signal, Blueprint or Fern (light), or Midnight or Carbon (dark). The preference stays on the device, works offline and follows through to the Windows quick-add box. Before you choose, Astir follows your system's light/dark preference. The layout adapts from a narrow utility window to a wide browser.
+
 ## Tech
 
 - **Web and API:** a Cloudflare Worker with static assets, D1, and React with Vite

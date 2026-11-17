@@ -98,6 +98,7 @@ export default function ItemDetails({ item, subtasks, day, timeZone, save }: Pro
 }
 
 function AddSubtaskForm({ parentTitle, onAdd }: { parentTitle: string; onAdd: (title: string) => void }) {
+  const id = useId();
   const [title, setTitle] = useState('');
   const [error, setError] = useState('');
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -109,8 +110,9 @@ function AddSubtaskForm({ parentTitle, onAdd }: { parentTitle: string; onAdd: (t
     setTitle('');
   }
   return <form className="add" onSubmit={submit} aria-label={`Add a subtask to “${parentTitle}”`}>
+    <label htmlFor={id}>New subtask</label>
     <div className="add-row small">
-      <input aria-label="New subtask" placeholder="Add a step" value={title} maxLength={TITLE_MAX} onChange={(e) => setTitle(e.target.value)} />
+      <input id={id} placeholder="Add a step" value={title} maxLength={TITLE_MAX} onChange={(e) => setTitle(e.target.value)} />
       <button type="submit">Add</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}

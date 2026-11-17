@@ -4,6 +4,7 @@ import { cleanTitle, TITLE_MAX } from '../sync/daily';
 import type { ListSummary } from '../sync/lists';
 import { historyHref, listHref, todayHref } from '../route';
 import type { Route } from '../route';
+import Icon from '../ui/Icon';
 
 interface Props {
   route: Route;
@@ -30,11 +31,11 @@ export default function ListsNav({ route, lists, todayLeft, onCreate }: Props) {
   const current = (here: boolean) => here ? { 'aria-current': 'page' as const } : {};
   return <nav className="views" aria-label="Today, History and your lists">
     <ul>
-      <li><a href={todayHref} {...current(route.screen === 'today')}>Today{todayLeft > 0 && <span className="count" aria-label={`, ${todayLeft} left`}>{todayLeft}</span>}</a></li>
-      <li><a href={historyHref()} {...current(route.screen === 'history')}>History</a></li>
+      <li><a href={todayHref} {...current(route.screen === 'today')}><Icon name="today" />Today{todayLeft > 0 && <span className="count" aria-label={`, ${todayLeft} left`}>{todayLeft}</span>}</a></li>
+      <li><a href={historyHref()} {...current(route.screen === 'history')}><Icon name="history" />History</a></li>
       {lists.map(({ list, open }) => <li key={list.id}>
         <a href={listHref(list.id)} {...current(route.screen === 'list' && route.listId === list.id)}>
-          {list.data!.title}{open > 0 && <span className="count" aria-label={`, ${open} open`}>{open}</span>}
+          <Icon name="list" /><span className="list-name">{list.data!.title}</span>{open > 0 && <span className="count" aria-label={`, ${open} open`}>{open}</span>}
         </a>
       </li>)}
       <li>{adding
@@ -44,7 +45,7 @@ export default function ListsNav({ route, lists, todayLeft, onCreate }: Props) {
               onKeyDown={(e) => { if (e.key === 'Escape') { setAdding(false); setTitle(''); setError(''); } }} />
             <button type="submit">Add</button>
           </form>
-        : <button type="button" className="quiet" onClick={() => setAdding(true)}>+ New list</button>}</li>
+        : <button type="button" className="quiet" onClick={() => setAdding(true)}><Icon name="plus" />New list</button>}</li>
     </ul>
     {error && <p className="form-error" role="alert">{error}</p>}
   </nav>;

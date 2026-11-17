@@ -9,6 +9,7 @@ import AppSignInScreen from './platform/AppSignInScreen';
 import { wipeLocalData } from './platform/localStore';
 import { isApp } from './platform/platform';
 import TodayScreen from './today/TodayScreen';
+import Brand from './ui/Brand';
 
 const ME_TIMEOUT_MS = 8_000;
 
@@ -48,7 +49,7 @@ export default function App() {
 
   if (loading) {
     return <main className="auth">
-      <span className="brand">Astir<span className="brand-dot" aria-hidden="true">●</span></span>
+      <Brand />
       <p role="status" className="intro">Opening Astir…</p>
     </main>;
   }

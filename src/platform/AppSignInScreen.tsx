@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Account } from '../authApi';
 import { finishAppSignIn, listenForHandoff, openInBrowser, startAppSignIn } from './appSignIn';
 import { webUrl } from './platform';
+import Brand from '../ui/Brand';
 
 /** The app's only sign-in: in the browser, so Turnstile and password managers work (D28). */
 export default function AppSignInScreen({ notice = '', onSignedIn }: { notice?: string; onSignedIn: (account: Account) => void }) {
@@ -29,7 +30,7 @@ export default function AppSignInScreen({ notice = '', onSignedIn }: { notice?: 
   }
 
   return <main className="auth">
-    <span className="brand">Astir<span className="brand-dot" aria-hidden="true">●</span></span>
+    <Brand />
     <p className="intro">A fresh start for your day.</p>
     <section className="account" aria-labelledby="account-heading">
       <h1 id="account-heading">Sign in</h1>

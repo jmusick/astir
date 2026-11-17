@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { authApi } from './authApi';
 import type { Account } from './authApi';
+import Brand from './ui/Brand';
 
 // /connect-app on the web: hands a sign-in to the Astir app that opened this page (D28). The app
 // sent a PKCE challenge; the code made here only works with the verifier that app kept.
@@ -30,7 +31,7 @@ export default function ConnectAppScreen({ account }: { account: Account }) {
   }
 
   return <main className="auth">
-    <a className="brand" href="/">Astir<span className="brand-dot" aria-hidden="true">●</span></a>
+    <Brand href="/" />
     <section className="account" aria-labelledby="connect-heading">
       <h1 id="connect-heading">Sign in to {name}</h1>
       {error && <p className="notice error" role="alert">{error}</p>}
