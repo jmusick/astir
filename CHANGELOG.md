@@ -4,6 +4,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-16
+
 ### Added
 
 - Look back at past days in History, next to Today. Pick any day since you started, or step through them one at a time, to see which habits you did out of the ones scheduled and which tasks you checked off. Past days stay as they were: changing a habit's schedule or removing a habit doesn't change them, and days you didn't open Astir show their habits as not done.
@@ -51,7 +53,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 - Astir has a home at [astir.stonedragonmedia.com](https://astir.stonedragonmedia.com). There's nothing to use yet: the page is a placeholder while the daily list is built.
 - Astir's code is available under the Astir Non-Commercial License: free for personal and non-commercial use.
 
-[Unreleased]: https://github.com/jmusick/astir/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/jmusick/astir/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/jmusick/astir/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/jmusick/astir/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/jmusick/astir/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/jmusick/astir/compare/v0.4.0...v0.5.0
