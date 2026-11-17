@@ -4,6 +4,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-16
+
 ### Added
 
 - Keep your own lists, like Work, Groceries or Someday. They sit next to Today with a count of what's still open, and they never reset: a task stays until you check it off. Give a list task a due date and, once it's due or overdue, it also shows in Today under "Due from your lists" and counts toward the ring; checking it there checks it off in its list. Tasks can have notes, a reminder time and a checklist of subtasks, and habits can have notes and a daily reminder time. Checking every subtask leaves the task itself for you to check. Reminders are saved but don't notify yet. Deleting a list asks first and takes its tasks with it.
@@ -45,7 +47,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 - Astir has a home at [astir.stonedragonmedia.com](https://astir.stonedragonmedia.com). There's nothing to use yet: the page is a placeholder while the daily list is built.
 - Astir's code is available under the Astir Non-Commercial License: free for personal and non-commercial use.
 
-[Unreleased]: https://github.com/jmusick/astir/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/jmusick/astir/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/jmusick/astir/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/jmusick/astir/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/jmusick/astir/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/jmusick/astir/compare/v0.3.0...v0.4.0
