@@ -13,13 +13,15 @@ The v1 design lives in [docs/specs/2026-11-16-astir-v1.md](docs/specs/2026-11-16
 
 ## Status
 
-The foundation (#1), web account flow (#2) and server sync API (#3) are implemented. The client sync engine and daily list UI are not built yet. Work goes through issues [#1 to #15](https://github.com/jmusick/astir/issues) in build order. Each issue lists the issues it depends on and has a "Done when" checklist taken from the spec.
+The foundation (#1), web account flow (#2), server sync API (#3) and the web Today view with the client sync engine (#4) are implemented. Rollover, the account's time zone and day-start hour (#5) are not built yet: "today" is still the device's local date. Work goes through issues [#1 to #15](https://github.com/jmusick/astir/issues) in build order. Each issue lists the issues it depends on and has a "Done when" checklist taken from the spec.
 
 ## Layout
 
 One npm package at the root, no workspaces. The layout follows the Cloudflare Vite plugin's and Tauri's defaults so their docs apply as written.
 
-- `src/`: the shared React UI. The TypeScript sync engine goes in `src/sync/` when it lands.
+- `src/`: the shared React UI. `App.tsx` picks between `AuthScreen.tsx` (signed out) and `today/TodayScreen.tsx` (signed in); `authMode.ts` reads the account form from the address, and `rememberedAccount.ts` lets Today open offline.
+- `src/sync/`: the one TypeScript sync engine (D13). `engine.ts` is local-first and storage-agnostic; it talks to a `SyncStore` (`store.ts`; `indexedDbStore.ts` for the browser, one database per account, D45; a Tauri SQLite store implements the same interface later) and a `SyncTransport` (`transport.ts`, the HTTP API). `daily.ts` holds the pure Today model and record builders. `day.ts` is the only place that decides what "today" is.
+- `tests/client/`: Vitest for `src/sync` with DOM types (`tsconfig.app.json`); `fake-indexeddb` stands in for the browser. `tests/sync-client.test.ts` runs the engine against the real Worker handler.
 - `worker/`: the Cloudflare Worker. `index.ts` is a single-file dispatcher (as in Tagstash), `headers.ts` sets the API's security headers, `no-store` and the CORS allowlist.
 - `worker/auth.ts`: web auth handlers and helpers adapted from Tagstash. Optional secret types live in `worker/env.d.ts`; generated bindings still come from Wrangler.
 - `worker/sync.ts`: validates sync pushes and serves revision-cursor pulls. [docs/sync-api.md](docs/sync-api.md) owns the wire contract. `0002_sync.sql` stores all entities in `sync_records`, with per-entity views, reference/revision triggers and a final-state quota check.
@@ -42,6 +44,9 @@ One npm package at the root, no workspaces. The layout follows the Cloudflare Vi
 - **Auth tests use Node's built-in SQLite** to execute the real migration and transactional SQL. No extra SQLite package or Worker runtime is needed. Missing migrations fail auth closed; apply local migrations before testing the forms.
 - **Turnstile's public test secrets omit the action field.** Only on HTTP loopback with a public dummy secret do we skip action validation. A real secret always checks the action; HTTPS always refuses dummy secrets and checks hostname as well.
 - **Sync pushes are D1 transactions.** Keep the `json_each` upsert and final quota-check insert in one `DB.batch`. Only winning changes allocate a server revision. Pull cursors use those revisions, never client timestamps, and pushes never advance a pull cursor.
+- **Client deletes go in the same push as everything else**, so quotas see the final state. The server ignores data on deletes, so a tombstone for an item it never saw is stored without data: the next pull hands `engine.ts` that tombstone, which marks its local copy `archive` and pushes the data back. If a push is rejected with 400 because completions or children reference such an item, the engine retries with the archive copies first and the tombstones after.
+- **Offline start uses the remembered account.** `rememberedAccount.ts` keeps the signed-in account's id and email in `localStorage` so Today opens from IndexedDB when `/api/auth/me` can't be reached. Sign-out and a 401 from `me` clear it.
+- **Local edits are stamped by `SyncEngine.change`.** Record builders in `daily.ts` leave `editedAt` at 0; the engine stamps each edit strictly after the previous one for that record.
 - **Sync tombstones are permanent and keep archive data.** A delete arriving before creation can receive its missing metadata later, while remaining deleted. Item kind, parent, list and original/creation day are immutable. Completions and schedules use semantic client IDs; see the API contract before building the client.
 
 ## Rules that shape the code

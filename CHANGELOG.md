@@ -4,6 +4,10 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Plan and finish your day on the web. Today shows your habits and today-only tasks in their own panels, with a progress ring and a running “done · to go” count. Add habits that repeat every day or on chosen weekdays, add tasks for today, and check off, rename or delete them. Changes save in your browser first and sync in the background, so a dropped connection doesn’t lose anything; signing out syncs and then clears your data from that browser.
+
 ## [0.3.0] - 2026-11-16
 
 ### Added
