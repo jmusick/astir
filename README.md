@@ -61,7 +61,7 @@ The home page is the sign-in form. `/signup`, `/forgot-password` and `/resend-ve
 
 The examples use Cloudflare's public Turnstile test keys for local HTTP only. A deployed app needs a real widget allowing `astir.stonedragonmedia.com`, its secret, and its public site key at build time. The server refuses test secrets on HTTPS. Missing auth or email configuration returns 503 rather than bypassing checks. Email uses Cloudflare Email Sending's REST API, with no email Worker binding. Configure the credentials above to test real verification/reset delivery locally; the automated tests intercept providers and never send mail.
 
-For production setup, set each Worker secret with `npx wrangler secret put NAME`, build with the production site key, apply `npm run db:migrate:remote`, then deploy. Keep credentials out of tracked files. Changing a signing secret invalidates every existing browser session.
+For production setup, set each Worker secret with `npx wrangler secret put NAME` (type only the name; paste the value at the prompt) and apply `npm run db:migrate:remote`. Production builds get the public Turnstile site key from the `VITE_TURNSTILE_SITE_KEY` build variable in Workers Builds. Keep credentials out of tracked files. Changing a signing secret invalidates every existing browser session.
 
 Browser sessions last seven days in an HttpOnly, Secure, SameSite=Lax cookie (plain HTTP loopback uses a local cookie). Tokens never go in localStorage. Every authenticated request checks D1 for expiry, revocation and the current account version; sign-out revokes the session as well as clearing its cookie. Settings lists each live session by a browser-and-system name derived from its User-Agent, with its last activity, and can revoke any but the current one. Deleting an account needs the password and the word DELETE, and removes the user row (sessions, tokens and synced records cascade) plus its address-keyed auth events and lockout in one batch. A request whose cookie carries a token this server signed for a user that no longer exists gets a 401 with `reason: "account-deleted"`, so that account's other devices clear their local copy.
 
@@ -78,7 +78,7 @@ New passwords need at least eight characters and at most 72 UTF-8 bytes. Like Ta
 | `npm run build` | Type check, then build the Worker and the static assets into `dist/` |
 | `npm run preview` | Build, then serve the production build locally |
 | `npm run db:migrate:local` / `db:migrate:remote` | Apply D1 migrations locally or to production |
-| `npm run deploy` | Build and deploy to astir.stonedragonmedia.com (needs `wrangler login`) |
+| `npm run deploy` | Build and deploy by hand (needs `wrangler login`); pushes to `main` normally do this |
 | `npm run app:dev` | The Windows app against `npm run dev` (Tauri; starts the dev server itself) |
 | `npm run app:build` | Build the Windows app and its installer into `src-tauri/target/release` |
 
@@ -88,7 +88,7 @@ The app needs [Rust](https://rustup.rs) (stable, MSVC) and the Visual Studio C++
 
 `npm run app:dev` loads the UI from the Vite dev server, so a development app talks to your local Worker and D1. A built app talks to astir.stonedragonmedia.com (override with `VITE_ASTIR_ORIGIN` at build time). It has no password form: **Sign in with your browser** opens `/connect-app` with a PKCE challenge, the signed-in page asks for a one-time code (five minutes, single use) and opens `astir://auth?code=…`, and the app redeems it with its verifier for a long-lived device token. Device tokens are listed in Settings with the browsers, can be revoked there, and end on a password reset. Data lives in one SQLite file per account in the app's data folder; signing out empties it. A development build registers `astir://` when it starts; installers register it themselves.
 
-CI runs the shared [jmusick/ci](https://github.com/jmusick/ci) checks on every push and pull request. Deploys are run by hand with `npm run deploy` for now.
+CI runs the shared [jmusick/ci](https://github.com/jmusick/ci) checks on every push and pull request. Deploys are separate: the `astir` Worker is connected to Cloudflare Workers Builds, so **every push to `main` builds and deploys production** (`npm run build`, then `npx wrangler deploy`, with the `astir-build` API token). CI holds no deploy credentials. Migrations aren't part of the build: apply any new one with `npm run db:migrate:remote` before pushing the code that needs it.
 
 ## Installing Astir for Windows
 
