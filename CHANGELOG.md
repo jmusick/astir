@@ -4,6 +4,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-17
+
 ### Added
 
 - Check for updates from Settings in the Windows app. If a new version is available, Astir downloads it, installs it quietly and restarts automatically, without walking through setup again. Settings also tells you when you're up to date or an update couldn't be completed.
@@ -81,7 +83,9 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 - Astir has a home at [astir.stonedragonmedia.com](https://astir.stonedragonmedia.com). There's nothing to use yet: the page is a placeholder while the daily list is built.
 - Astir's code is available under the Astir Non-Commercial License: free for personal and non-commercial use.
 
-[Unreleased]: https://github.com/jmusick/astir/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/jmusick/astir/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/jmusick/astir/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/jmusick/astir/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/jmusick/astir/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/jmusick/astir/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/jmusick/astir/compare/v0.7.0...v0.8.0
