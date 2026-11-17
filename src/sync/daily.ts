@@ -1,13 +1,15 @@
 import { daysBetween, weekdayOf } from './day';
-import { recordKey } from './types';
+import { dueEntries } from './lists';
+import type { DueEntry } from './lists';
+import { blank, byPosition, checkedAt, CLOCK_SLACK_MS, habitCompletionId, isCompleted, scheduleId, subtasksByParent, taskCompletionId, tombstone } from './records';
+import type { Entry } from './records';
 import type { CompletionData, ItemData, ScheduleData, SyncRecord } from './types';
 
 // The daily list's model: what Today shows, and the full records each edit produces.
 // Everything here is pure, so it's shared by every client and tested without a browser.
 
+export { cleanNotes, cleanTitle, habitCompletionId, isCompleted, NOTES_MAX, scheduleId, taskCompletionId, TITLE_MAX } from './records';
 export const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
-export const TITLE_MAX = 500;
-const CLOCK_SLACK_MS = 5 * 60_000;
 /** Monday first, as most people read a week. Values are 0 (Sunday) to 6 (Saturday). */
 export const WEEK = [1, 2, 3, 4, 5, 6, 0];
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -18,9 +20,9 @@ export function describeDays(weekdays: readonly number[]): string {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0] ?? '';
 }
 
-export interface TodayEntry {
-  item: SyncRecord<ItemData>;
-  done: boolean;
+export interface TodayEntry extends Entry {
+  /** A today-only task's checklist (D26); subtasks don't count toward the ring. */
+  subtasks?: Entry[];
   /** Which day of its life a today-only task is on: 1 on its original day, 2 after one rollover (D41). */
   dayCount?: number;
 }
@@ -28,22 +30,15 @@ export interface TodayView {
   day: string;
   habits: TodayEntry[];
   tasks: TodayEntry[];
+  /** Named-list tasks due today or overdue (D27). They count toward the ring. */
+  due: DueEntry[];
   done: number;
   total: number;
   /** 0–100, rounded. 0 when nothing is planned. */
   percent: number;
-  /** True when this account has no live habits or tasks at all (the first-run empty state). */
+  /** True when this account has no live habits, tasks or lists at all (the first-run empty state). */
   isNew: boolean;
 }
-
-export const habitCompletionId = (itemId: string, day: string) => `${itemId}:${day}`;
-export const taskCompletionId = (itemId: string) => `${itemId}:task`;
-export const scheduleId = (itemId: string, effectiveDay: string) => `${itemId}:${effectiveDay}`;
-
-const live = <D>(records: ReadonlyMap<string, SyncRecord>, key: string) => {
-  const record = records.get(key);
-  return record && !record.deleted && record.data ? record as SyncRecord<D> : undefined;
-};
 
 /** The schedule in effect on a day: the latest version effective on or before it (D40). */
 export function scheduleOn(versions: readonly ScheduleData[] | undefined, day: string): ScheduleData | undefined {
@@ -64,13 +59,6 @@ function schedulesByItem(records: ReadonlyMap<string, SyncRecord>) {
   return byItem;
 }
 
-export function isCompleted(records: ReadonlyMap<string, SyncRecord>, completionId: string): boolean {
-  return live<CompletionData>(records, recordKey('completion', completionId))?.data?.completed === true;
-}
-
-const byPosition = (a: TodayEntry, b: TodayEntry) =>
-  (a.item.data!.position ?? 0) - (b.item.data!.position ?? 0) || a.item.id.localeCompare(b.item.id);
-
 /** "2nd day", "3rd day", "11th day", "21st day" */
 export function carriedLabel(dayCount: number): string {
   const tens = dayCount % 100;
@@ -88,46 +76,40 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
   const habits: TodayEntry[] = [];
   const tasks: TodayEntry[] = [];
   const schedules = schedulesByItem(records);
+  const subtasks = subtasksByParent(records);
   let isNew = true;
   for (const record of records.values()) {
+    if (record.entity === 'list' && !record.deleted && record.data) isNew = false;
     if (record.entity !== 'item' || record.deleted || !record.data) continue;
+    isNew = false;
     const item = record as SyncRecord<ItemData>;
     const data = item.data!;
     if (data.kind === 'habit') {
-      isNew = false;
       if (!data.createdDay || data.createdDay > day) continue;
       if (!scheduleOn(schedules.get(item.id), day)?.weekdays.includes(weekday)) continue;
       habits.push({ item, done: isCompleted(records, habitCompletionId(item.id, day)) });
     } else if (data.kind === 'today' && !data.parentId) {
-      isNew = false;
       const original = data.originalDay;
       if (!original || original > day) continue;
-      const completion = live<CompletionData>(records, recordKey('completion', taskCompletionId(item.id)));
-      const checked = completion?.data?.completed === true ? completion.editedAt : null;
+      const checked = checkedAt(records, item.id);
       // Checked before this day: it was finished on an earlier day and doesn't roll over.
       if (checked !== null && original < day && dayOf(checked) < day) continue;
       // Edit stamps may run a few minutes ahead (D32 clamps at five), so a check just before the
       // reset still counts for the day it was made.
       const done = checked !== null && dayOf(checked - CLOCK_SLACK_MS) <= day;
-      tasks.push({ item, done, dayCount: daysBetween(original, day) + 1 });
+      tasks.push({ item, done, subtasks: subtasks.get(item.id) ?? [], dayCount: daysBetween(original, day) + 1 });
     }
   }
   habits.sort(byPosition); tasks.sort(byPosition);
-  const total = habits.length + tasks.length;
-  const done = [...habits, ...tasks].filter((entry) => entry.done).length;
-  return { day, habits, tasks, done, total, percent: total ? Math.round((done / total) * 100) : 0, isNew };
+  const due = dueEntries(records, day, dayOf, subtasks);
+  const counted = [...habits, ...tasks, ...due];
+  const total = counted.length;
+  const done = counted.filter((entry) => entry.done).length;
+  return { day, habits, tasks, due, done, total, percent: total ? Math.round((done / total) * 100) : 0, isNew };
 }
 
 /** "2 done · 3 to go" */
 export const progressLabel = (view: Pick<TodayView, 'done' | 'total'>) => `${view.done} done · ${view.total - view.done} to go`;
-
-/** A trimmed title, or an error message for the user. */
-export function cleanTitle(title: string): { title: string } | { error: string } {
-  const trimmed = title.trim();
-  if (!trimmed) return { error: 'Give it a name first.' };
-  if (trimmed.length > TITLE_MAX) return { error: `Keep it under ${TITLE_MAX} characters.` };
-  return { title: trimmed };
-}
 
 export function normalizeWeekdays(weekdays: number[]): number[] {
   const unique = [...new Set(weekdays.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort((a, b) => a - b);
@@ -136,7 +118,7 @@ export function normalizeWeekdays(weekdays: number[]): number[] {
 }
 
 // Record builders. editedAt is a placeholder: SyncEngine.change stamps the real edit time.
-const record = <D>(entity: SyncRecord['entity'], id: string, data: D): SyncRecord => ({ entity, id, editedAt: 0, deleted: false, data });
+const record = blank;
 
 /** A new habit and its first schedule version, effective on the day it's created (D40). */
 export function newHabit(id: string, title: string, weekdays: number[], day: string, position: number): SyncRecord[] {
@@ -158,10 +140,19 @@ export function setCompleted(item: SyncRecord<ItemData>, day: string, completed:
 
 /** Renames send the whole record, not a patch. */
 export function renamed(item: SyncRecord<ItemData>, title: string): SyncRecord[] {
-  return [{ ...item, data: { ...item.data!, title } }];
+  return edited(item, { title });
 }
 
-/** A tombstone that keeps its data, so a deleted habit is archived with its history (D34). */
-export function removed(item: SyncRecord<ItemData>): SyncRecord[] {
-  return [{ ...item, deleted: true, data: { ...item.data! } }];
+/** Notes, due date and reminder edits: the whole record with the changed fields. */
+export function edited(item: SyncRecord<ItemData>, changes: Partial<Pick<ItemData, 'title' | 'notes' | 'dueDay' | 'reminder'>>): SyncRecord[] {
+  return [{ ...item, data: { ...item.data!, ...changes } }];
+}
+
+/**
+ * A tombstone that keeps its data, so a deleted habit is archived with its history (D34). Sync
+ * never cascades, so a task's subtasks go with it when the records are given.
+ */
+export function removed(item: SyncRecord<ItemData>, records?: ReadonlyMap<string, SyncRecord>): SyncRecord[] {
+  const children = records ? (subtasksByParent(records).get(item.id) ?? []).map((entry) => tombstone(entry.item)) : [];
+  return [tombstone(item), ...children];
 }

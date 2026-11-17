@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SignJWT } from 'jose';
 import worker from '../worker/index';
 import { SyncEngine } from '../src/sync/engine';
-import { EVERY_DAY, newHabit, newTodayTask, removed, renamed, setCompleted, todayView } from '../src/sync/daily';
+import { edited, EVERY_DAY, newHabit, newTodayTask, removed, renamed, setCompleted, todayView } from '../src/sync/daily';
+import { listSummaries, listView, newList, newListTask, newSubtask, removedList } from '../src/sync/lists';
+import type { ListData } from '../src/sync/lists';
 import { MemoryStore } from '../src/sync/store';
 import { SyncRequestError, httpTransport } from '../src/sync/transport';
 import type { SyncTransport } from '../src/sync/transport';
@@ -39,6 +41,40 @@ beforeEach(() => { store = testDatabase(); env = { DB: store.db, APP_URL: ORIGIN
 afterEach(() => { store.sqlite.close(); });
 
 describe('sync engine against the Worker', () => {
+  it('syncs named lists, due dates, notes, reminders and subtasks, and deletes a list with its tasks', async () => {
+    const cookie = await session('owner');
+    const laptop = await device(cookie);
+    await laptop.change(newList('work', 'Work', 1));
+    await laptop.change(newList('groceries', 'Groceries', 2));
+    await laptop.change(newListTask('report', 'work', 'Write the report', 1, MONDAY));
+    await laptop.change(newSubtask('outline', item(laptop, 'report'), 'Outline', 1));
+    await laptop.change(edited(item(laptop, 'report'), { notes: 'Ask Sam first', reminder: '2026-11-16T22:30:00.000Z' }));
+    await laptop.change(newListTask('milk', 'groceries', 'Milk', 1));
+    await laptop.change(newHabit('walk', 'Walk', EVERY_DAY, MONDAY, 1));
+    await laptop.change(edited(item(laptop, 'walk'), { notes: 'Around the block', reminder: '07:15' }));
+    await laptop.change(newTodayTask('call', 'Call the bank', MONDAY, 2));
+    await laptop.change(newSubtask('number', item(laptop, 'call'), 'Find the number', 1));
+    await laptop.change(setCompleted(item(laptop, 'outline'), MONDAY, true));
+    await laptop.sync();
+    expect(laptop.getSnapshot().status).toMatchObject({ state: 'synced', pending: 0 });
+
+    const phone = await device(cookie);
+    await phone.sync();
+    const records = phone.getSnapshot().records;
+    expect(listSummaries(records).map((s) => [s.list.data!.title, s.open])).toEqual([['Work', 1], ['Groceries', 1]]);
+    const view = todayView(records, MONDAY, () => MONDAY);
+    expect(view.due.map((e) => [e.item.data!.notes, e.subtasks.map((s) => s.done)])).toEqual([['Ask Sam first', [true]]]);
+    expect(view.tasks[0].subtasks!.map((s) => s.item.id)).toEqual(['number']);
+
+    await phone.change(removedList(records, records.get('list/work') as SyncRecord<ListData>));
+    await phone.sync();
+    await laptop.sync();
+    expect(phone.getSnapshot().status).toMatchObject({ state: 'synced', pending: 0 });
+    expect(listSummaries(laptop.getSnapshot().records).map((s) => s.list.id)).toEqual(['groceries']);
+    expect(listView(laptop.getSnapshot().records, 'work')).toBeUndefined();
+    expect(laptop.getSnapshot().records.get('item/outline')).toMatchObject({ deleted: true, data: { title: 'Outline' } });
+  });
+
   it('syncs a day planned offline to a second device, including an archived habit', async () => {
     const cookie = await session('owner');
     const laptop = await device(cookie);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDays, changeDaySettings, dayAt, dayIn, daysBetween, dayVersions, FIRST_DAY, firstDaySettings, hourLabel,
-  nextEffectiveDay, settingsOn, weekdayOf,
+  nextEffectiveDay, settingsOn, wallTime, weekdayOf, zonedInstant,
 } from '../../src/sync/day';
 import { keyOf } from '../../src/sync/types';
 import type { DayData, SyncRecord } from '../../src/sync/types';
@@ -93,5 +93,21 @@ describe('the account day', () => {
     expect(daysBetween('2026-11-14', '2026-11-18')).toBe(4);
     expect(weekdayOf('2026-11-16')).toBe(1);
     expect(weekdayOf('2026-11-22')).toBe(0);
+  });
+});
+
+describe('wall-clock times in the account zone', () => {
+  it('turns a New York date and time into the instant and back', () => {
+    const instant = zonedInstant('2026-11-17', '17:30', NY);
+    expect(new Date(instant).toISOString()).toBe('2026-11-17T22:30:00.000Z');
+    expect(wallTime(instant, NY)).toEqual({ day: '2026-11-17', time: '17:30' });
+  });
+
+  it('handles both sides of daylight saving', () => {
+    expect(new Date(zonedInstant('2026-07-01', '09:00', NY)).toISOString()).toBe('2026-07-01T13:00:00.000Z');
+    // 2:30 AM doesn't exist on March 8, 2026; it moves past the jump.
+    expect(new Date(zonedInstant('2026-03-08', '02:30', NY)).toISOString()).toBe('2026-03-08T07:30:00.000Z');
+    // 1:30 AM happens twice on November 1, 2026; the first one wins.
+    expect(new Date(zonedInstant('2026-11-01', '01:30', NY)).toISOString()).toBe('2026-11-01T05:30:00.000Z');
   });
 });

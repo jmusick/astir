@@ -4,6 +4,10 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Keep your own lists, like Work, Groceries or Someday. They sit next to Today with a count of what's still open, and they never reset: a task stays until you check it off. Give a list task a due date and, once it's due or overdue, it also shows in Today under "Due from your lists" and counts toward the ring; checking it there checks it off in its list. Tasks can have notes, a reminder time and a checklist of subtasks, and habits can have notes and a daily reminder time. Checking every subtask leaves the task itself for you to check. Reminders are saved but don't notify yet. Deleting a list asks first and takes its tasks with it.
+
 ## [0.6.0] - 2026-11-16
 
 ### Added

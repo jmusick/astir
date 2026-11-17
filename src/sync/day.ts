@@ -108,6 +108,36 @@ export function changeDaySettings(versions: readonly DayData[], next: DaySetting
   ];
 }
 
+const minuteFormatters = new Map<string, Intl.DateTimeFormat>();
+/** An instant's wall-clock date and HH:mm time in a zone. */
+export function wallTime(instant: number, timeZone: string): { day: string; time: string } {
+  let format = minuteFormatters.get(timeZone);
+  if (!format) {
+    const zone = isTimeZone(timeZone) ? timeZone : deviceTimeZone();
+    format = new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    minuteFormatters.set(timeZone, format);
+  }
+  const parts: Record<string, string> = {};
+  for (const part of format.formatToParts(instant)) parts[part.type] = part.value;
+  return { day: `${parts.year.padStart(4, '0')}-${parts.month}-${parts.day}`, time: `${String(Number(parts.hour) % 24).padStart(2, '0')}:${parts.minute}` };
+}
+
+const wallMs = (day: string, time: string) => Date.parse(`${day}T${time}:00Z`);
+
+/**
+ * The instant a zone's clock shows a date and HH:mm time. A time skipped by a DST jump lands
+ * just after the jump; a repeated one takes its first occurrence.
+ */
+export function zonedInstant(day: string, time: string, timeZone: string): number {
+  const target = wallMs(day, time);
+  const offsetAt = (instant: number) => { const wall = wallTime(instant, timeZone); return wallMs(wall.day, wall.time) - instant; };
+  // Try both offsets seen around the target; the earliest that matches is the first occurrence.
+  const candidates = [...new Set([target - offsetAt(target - 86_400_000), target - offsetAt(target), target - offsetAt(target + 86_400_000)])].sort((a, b) => a - b);
+  for (const instant of candidates) if (instant + offsetAt(instant) === target) return instant;
+  // Skipped by a DST jump: keep the wall-clock distance from before the gap.
+  return target - offsetAt(target - 86_400_000);
+}
+
 /** "midnight", "4 AM", "noon", "11 PM" */
 export function hourLabel(hour: number): string {
   if (hour === 0) return 'midnight';

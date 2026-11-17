@@ -3,10 +3,16 @@ import { authApi } from '../authApi';
 import type { Account } from '../authApi';
 import { forgetAccount } from '../rememberedAccount';
 import { newHabit, newTodayTask, progressLabel, removed, renamed, setCompleted, todayView } from '../sync/daily';
+import { dueLabel, listSummaries, newList } from '../sync/lists';
 import { addDays, changeDaySettings, dayAt, dayLabel, dayVersions, deviceTimeZone, firstDaySettings, hourLabel, settingsOn } from '../sync/day';
 import type { DayData, SyncRecord } from '../sync/types';
+import ListScreen from '../lists/ListScreen';
+import ListsNav from '../lists/ListsNav';
+import { listHref, useRoute } from '../route';
 import { AddHabitForm, AddTaskForm } from './AddForms';
 import DaySettingsForm from './DaySettingsForm';
+import ItemDetails from './ItemDetails';
+import { ItemMeta } from './ItemMeta';
 import ItemRow from './ItemRow';
 import ProgressRing from './ProgressRing';
 import SyncStatusLine from './SyncStatusLine';
@@ -41,6 +47,10 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
   const view = useMemo(() => snapshot ? todayView(snapshot.records, day, (editedAt) => dayAt(versions, editedAt)) : null, [snapshot, day, versions]);
   // The next reset is governed by the version in effect tomorrow, which includes a pending change.
   const upcoming = settingsOn(versions, addDays(day, 1));
+  // Reminder times are read in the zone governing today (D30, D42).
+  const zone = settingsOn(versions, day).timeZone;
+  const route = useRoute();
+  const lists = useMemo(() => snapshot ? listSummaries(snapshot.records) : [], [snapshot]);
   const device = deviceTimeZone();
   const [keepZone, setKeepZone] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -58,6 +68,10 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
     void engine?.change(firstDaySettings({ timeZone: deviceTimeZone(), startHour: 0 })).catch(() => undefined);
   }, [engine, synced, versions.length]);
   const skew = snapshot?.clockSkewMs ?? 0;
+  // A list linked by address may not be here until the first sync; offline, what's local is all there is.
+  // clockSkewMs is set by the first pull; a failed sync won't bring more soon.
+  const state = snapshot?.status.state;
+  const everSynced = snapshot?.clockSkewMs != null || state === 'offline' || state === 'rejected' || state === 'signed-out';
 
   async function signOut() {
     if (!engine) return;
@@ -86,53 +100,73 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
     </header>
     {error && <p className="notice error" role="alert">{error}</p>}
     {!view || !engine ? <p role="status" className="intro">Opening your day…</p> : <>
-      <section className="hero" aria-labelledby="today-heading">
-        <ProgressRing percent={view.percent} />
-        <div>
-          <p className="date">{dayLabel(day)}</p>
-          <h1 id="today-heading">Today</h1>
-          <p className="tally">{view.total ? progressLabel(view) : 'Nothing planned yet'}<span className="resets"> · resets at {hourLabel(upcoming.startHour)}</span></p>
-          {view.total > 0 && view.done === view.total && <p className="cheer">Everything’s done. Enjoy the rest of your day.</p>}
-        </div>
-      </section>
-      {versions.length > 0 && upcoming.timeZone !== device && !keepZone && <div className="notice zone" role="status">
-        <p>This device is on {device.replaceAll('_', ' ')} time, but your day follows {upcoming.timeZone.replaceAll('_', ' ')}.</p>
-        <p>
-          <button type="button" className="quiet" onClick={() => save(changeDaySettings(versions, { timeZone: device, startHour: upcoming.startHour }))}>Use {device.replaceAll('_', ' ')} from the next reset</button>
-          {' '}<button type="button" className="link" onClick={() => setKeepZone(true)}>Keep {upcoming.timeZone.replaceAll('_', ' ')}</button>
-        </p>
-      </div>}
-      {Math.abs(skew) > SKEW_WARN_MS && <p className="notice error" role="alert">
-        This device’s clock is about {Math.round(Math.abs(skew) / 60_000)} minutes {skew > 0 ? 'behind' : 'ahead of'} Astir’s. Your day may reset at the wrong time until the clock is corrected.
-      </p>}
-      {view.isNew && <section className="welcome" aria-label="Get started">
-        <h2>Start your first day</h2>
-        <p>Add a habit you want to keep, like a walk or ten minutes of reading, and one thing you’ll finish today. Check them off and watch the ring fill.</p>
-      </section>}
-      <div className="panels">
-        <section className="panel habits" aria-labelledby="habits-heading">
-          <h2 id="habits-heading">Habits</h2>
-          {view.habits.length > 0 ? <ul>
-            {view.habits.map(({ item, done }) => <ItemRow key={item.id} item={item} done={done} kind="habit"
-              onToggle={(checked) => save(setCompleted(item, day, checked))}
-              onRename={(title) => save(renamed(item, title))}
-              onDelete={() => save(removed(item))} />)}
-          </ul> : <p className="empty">{view.isNew ? 'Habits repeat every day or on the days you choose.' : 'No habits scheduled today.'}</p>}
-          <AddHabitForm key={day} day={day} first={view.isNew} onAdd={(title, weekdays) => save(newHabit(crypto.randomUUID(), title, weekdays, day, Date.now()))} />
-        </section>
-        <section className="panel tasks" aria-labelledby="tasks-heading">
-          <h2 id="tasks-heading">Today only</h2>
-          {view.tasks.length > 0 ? <ul>
-            {view.tasks.map(({ item, done, dayCount }) => <ItemRow key={item.id} item={item} done={done} kind="task" dayCount={dayCount}
-              onToggle={(checked) => save(setCompleted(item, day, checked))}
-              onRename={(title) => save(renamed(item, title))}
-              onDelete={() => save(removed(item))} />)}
-          </ul> : <p className="empty">{view.isNew ? 'One-off tasks for today live here.' : 'Nothing else planned for today.'}</p>}
-          <AddTaskForm first={view.isNew} onAdd={(title) => save(newTodayTask(crypto.randomUUID(), title, day, Date.now()))} />
-        </section>
-      </div>
-      <DaySettingsForm key={`${upcoming.timeZone} ${upcoming.startHour}`} settings={upcoming}
-        onSave={(next) => save(changeDaySettings(versions, next))} />
+      <ListsNav route={route} lists={lists} todayLeft={view.total - view.done}
+        onCreate={(title) => { const id = crypto.randomUUID(); save(newList(id, title, Date.now())); window.location.hash = listHref(id); }} />
+      {route.screen === 'list'
+        ? <ListScreen key={route.listId} listId={route.listId} records={snapshot!.records} day={day} timeZone={zone} save={save} synced={everSynced} />
+        : <>
+          <section className="hero" aria-labelledby="today-heading">
+            <ProgressRing percent={view.percent} />
+            <div>
+              <p className="date">{dayLabel(day)}</p>
+              <h1 id="today-heading">Today</h1>
+              <p className="tally">{view.total ? progressLabel(view) : 'Nothing planned yet'}<span className="resets"> · resets at {hourLabel(upcoming.startHour)}</span></p>
+              {view.total > 0 && view.done === view.total && <p className="cheer">Everything’s done. Enjoy the rest of your day.</p>}
+            </div>
+          </section>
+          {versions.length > 0 && upcoming.timeZone !== device && !keepZone && <div className="notice zone" role="status">
+            <p>This device is on {device.replaceAll('_', ' ')} time, but your day follows {upcoming.timeZone.replaceAll('_', ' ')}.</p>
+            <p>
+              <button type="button" className="quiet" onClick={() => save(changeDaySettings(versions, { timeZone: device, startHour: upcoming.startHour }))}>Use {device.replaceAll('_', ' ')} from the next reset</button>
+              {' '}<button type="button" className="link" onClick={() => setKeepZone(true)}>Keep {upcoming.timeZone.replaceAll('_', ' ')}</button>
+            </p>
+          </div>}
+          {Math.abs(skew) > SKEW_WARN_MS && <p className="notice error" role="alert">
+            This device’s clock is about {Math.round(Math.abs(skew) / 60_000)} minutes {skew > 0 ? 'behind' : 'ahead of'} Astir’s. Your day may reset at the wrong time until the clock is corrected.
+          </p>}
+          {view.isNew && <section className="welcome" aria-label="Get started">
+            <h2>Start your first day</h2>
+            <p>Add a habit you want to keep, like a walk or ten minutes of reading, and one thing you’ll finish today. Check them off and watch the ring fill.</p>
+          </section>}
+          <div className="panels">
+            <section className="panel habits" aria-labelledby="habits-heading">
+              <h2 id="habits-heading">Habits</h2>
+              {view.habits.length > 0 ? <ul>
+                {view.habits.map(({ item, done }) => <ItemRow key={item.id} item={item} done={done} kind="habit"
+                  details={() => <ItemDetails item={item} day={day} timeZone={zone} save={save} />}
+                  onToggle={(checked) => save(setCompleted(item, day, checked))}
+                  onRename={(title) => save(renamed(item, title))}
+                  onDelete={() => save(removed(item))} />)}
+              </ul> : <p className="empty">{view.isNew ? 'Habits repeat every day or on the days you choose.' : 'No habits scheduled today.'}</p>}
+              <AddHabitForm key={day} day={day} first={view.isNew} onAdd={(title, weekdays) => save(newHabit(crypto.randomUUID(), title, weekdays, day, Date.now()))} />
+            </section>
+            <section className="panel tasks" aria-labelledby="tasks-heading">
+              <h2 id="tasks-heading">Today only</h2>
+              {view.tasks.length > 0 ? <ul>
+                {view.tasks.map(({ item, done, dayCount, subtasks }) => <ItemRow key={item.id} item={item} done={done} kind="task" dayCount={dayCount}
+                  meta={<ItemMeta subtasks={subtasks} />}
+                  details={() => <ItemDetails item={item} subtasks={subtasks} day={day} timeZone={zone} save={save} />}
+                  onToggle={(checked) => save(setCompleted(item, day, checked))}
+                  onRename={(title) => save(renamed(item, title))}
+                  onDelete={() => save(removed(item, snapshot!.records))} />)}
+              </ul> : <p className="empty">{view.isNew ? 'One-off tasks for today live here.' : 'Nothing else planned for today.'}</p>}
+              <AddTaskForm first={view.isNew} onAdd={(title) => save(newTodayTask(crypto.randomUUID(), title, day, Date.now()))} />
+            </section>
+            {view.due.length > 0 && <section className="panel due" aria-labelledby="due-heading">
+              <h2 id="due-heading">Due from your lists</h2>
+              <ul>
+                {view.due.map(({ item, done, subtasks, listTitle, overdue }) => <ItemRow key={item.id} item={item} done={done} kind="task"
+                  meta={<ItemMeta subtasks={subtasks} from={listTitle} due={{ label: dueLabel(item.data!.dueDay!, day), late: overdue > 0 && !done }} />}
+                  details={() => <ItemDetails item={item} subtasks={subtasks} day={day} timeZone={zone} save={save} />}
+                  onToggle={(checked) => save(setCompleted(item, day, checked))}
+                  onRename={(title) => save(renamed(item, title))}
+                  onDelete={() => save(removed(item, snapshot!.records))} />)}
+              </ul>
+            </section>}
+          </div>
+          <DaySettingsForm key={`${upcoming.timeZone} ${upcoming.startHour}`} settings={upcoming}
+            onSave={(next) => save(changeDaySettings(versions, next))} />
+        </>}
       <SyncStatusLine status={snapshot!.status} localOnly={localOnly} onRetry={() => void engine.sync()} />
     </>}
   </main>;
