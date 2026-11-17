@@ -118,10 +118,10 @@ button.link { background: none; border: 0; padding: 0; color: var(--link); text-
 .item.subtask .title { font-weight: 500; }
 
 /* Round checkboxes (D22) */
-input.check { appearance: none; flex: none; width: 1.6rem; height: 1.6rem; padding: 0; margin: 0; border-radius: 50%; border: 2px solid var(--tone); background: var(--surface); cursor: pointer; display: grid; place-items: center; transition: background .15s; }
-input.check::after { content: ''; width: .4rem; height: .75rem; border: solid var(--on-tone); border-width: 0 3px 3px 0; transform: translateY(-1px) rotate(45deg); opacity: 0; }
-input.check:checked { background: var(--tone); }
-input.check:checked::after { opacity: 1; }
+input.check, .item.past .mark { appearance: none; flex: none; width: 1.6rem; height: 1.6rem; padding: 0; margin: 0; border-radius: 50%; border: 2px solid var(--tone); background: var(--surface); cursor: pointer; display: grid; place-items: center; transition: background .15s; }
+input.check::after, .item.past .mark::after { content: ''; width: .4rem; height: .75rem; border: solid var(--on-tone); border-width: 0 3px 3px 0; transform: translateY(-1px) rotate(45deg); opacity: 0; }
+input.check:checked, .item.past.done .mark { background: var(--tone); }
+input.check:checked::after, .item.past.done .mark::after { opacity: 1; }
 
 .meta { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; flex: none; max-width: 45%; }
 .chip { font-size: .75rem; font-weight: 700; padding: .1rem .5rem; border-radius: 999px; color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12rem; }
@@ -218,3 +218,16 @@ button.quiet.danger { background: var(--danger); border-color: var(--danger); co
 .done-tasks { margin-top: 1rem; }
 .done-tasks summary { cursor: pointer; font-weight: 700; color: var(--tone); width: fit-content; }
 .done-tasks ul { margin-top: .5rem; }
+
+/* History: a read-only look back at past days (D7) */
+.history-screen { margin-top: 2rem; }
+.history-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem 1.5rem; margin-bottom: 1.25rem; }
+.history-head h1 { margin: 0; font-size: 2.2rem; letter-spacing: -.04em; }
+.history-head .year { color: var(--muted); }
+.day-picker { display: flex; align-items: center; gap: .4rem; }
+.day-picker input { width: auto; padding: .45rem .6rem; background: var(--surface); border-color: var(--line); }
+.day-picker button.quiet { font-size: 1.2rem; line-height: 1; padding: .4rem .75rem; }
+.day-picker button:disabled { opacity: .4; cursor: default; }
+.item.past .mark, .item.past .title { cursor: default; }
+.item.past.done > .item-main .title { color: var(--text); text-decoration: none; }
+.item.past:not(.done) > .item-main .title { color: var(--muted); }

@@ -8,6 +8,7 @@ import { addDays, changeDaySettings, dayAt, dayLabel, dayVersions, deviceTimeZon
 import type { DayData, SyncRecord } from '../sync/types';
 import ListScreen from '../lists/ListScreen';
 import ListsNav from '../lists/ListsNav';
+import HistoryScreen from '../history/HistoryScreen';
 import { listHref, useRoute } from '../route';
 import { AddHabitForm, AddTaskForm } from './AddForms';
 import DaySettingsForm from './DaySettingsForm';
@@ -104,6 +105,8 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
         onCreate={(title) => { const id = crypto.randomUUID(); save(newList(id, title, Date.now())); window.location.hash = listHref(id); }} />
       {route.screen === 'list'
         ? <ListScreen key={route.listId} listId={route.listId} records={snapshot!.records} day={day} timeZone={zone} save={save} synced={everSynced} />
+        : route.screen === 'history'
+        ? <HistoryScreen records={snapshot!.records} today={day} versions={versions} requested={route.day} />
         : <>
           <section className="hero" aria-labelledby="today-heading">
             <ProgressRing percent={view.percent} />

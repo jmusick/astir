@@ -49,7 +49,8 @@ export function scheduleOn(versions: readonly ScheduleData[] | undefined, day: s
   return best;
 }
 
-function schedulesByItem(records: ReadonlyMap<string, SyncRecord>) {
+/** Every live schedule version, grouped by item. Archived habits keep theirs, so history can use them (D34). */
+export function schedulesByItem(records: ReadonlyMap<string, SyncRecord>) {
   const byItem = new Map<string, ScheduleData[]>();
   for (const record of records.values()) {
     if (record.entity !== 'schedule' || record.deleted || !record.data) continue;

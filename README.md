@@ -8,7 +8,7 @@ This README owns what Astir is and how to set it up and use it. [AGENTS.md](AGEN
 
 ## Status
 
-Early. Web accounts support sign-up, email verification, sign-in, password reset and sign-out. The server stores lists, items, versioned recurring schedules, completions and the account's day settings behind an authenticated [sync API](docs/sync-api.md). The web Today view runs offline-first on the client sync engine, loads with no connection after the first visit, resets at your day-start hour and rolls unfinished tasks over. Named lists hold tasks with notes, due dates and subtasks, and tasks that are due show in Today. Reminder notifications, history, Settings and the native apps are still being built. The v1 design is settled in the [spec](docs/specs/2026-11-16-astir-v1.md) and split into [issues #1 to #15](https://github.com/jmusick/astir/issues) in build order.
+Early. Web accounts support sign-up, email verification, sign-in, password reset and sign-out. The server stores lists, items, versioned recurring schedules, completions and the account's day settings behind an authenticated [sync API](docs/sync-api.md). The web Today view runs offline-first on the client sync engine, loads with no connection after the first visit, resets at your day-start hour and rolls unfinished tasks over. Named lists hold tasks with notes, due dates and subtasks, and tasks that are due show in Today. History shows what you did on any past day. Reminder notifications, Settings and the native apps are still being built. The v1 design is settled in the [spec](docs/specs/2026-11-16-astir-v1.md) and split into [issues #1 to #15](https://github.com/jmusick/astir/issues) in build order.
 
 ## Planned for v1
 

@@ -4,6 +4,10 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Look back at past days in History, next to Today. Pick any day since you started, or step through them one at a time, to see which habits you did out of the ones scheduled and which tasks you checked off. Past days stay as they were: changing a habit's schedule or removing a habit doesn't change them, and days you didn't open Astir show their habits as not done.
+
 ## [0.7.0] - 2026-11-16
 
 ### Added

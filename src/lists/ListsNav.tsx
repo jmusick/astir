@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { cleanTitle, TITLE_MAX } from '../sync/daily';
 import type { ListSummary } from '../sync/lists';
-import { listHref, todayHref } from '../route';
+import { historyHref, listHref, todayHref } from '../route';
 import type { Route } from '../route';
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
   onCreate: (title: string) => void;
 }
 
-/** Today and every named list, each with how much is left (D8). */
+/** Today, History and every named list, each list with how much is left (D7, D8). */
 export default function ListsNav({ route, lists, todayLeft, onCreate }: Props) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -28,9 +28,10 @@ export default function ListsNav({ route, lists, todayLeft, onCreate }: Props) {
   }
 
   const current = (here: boolean) => here ? { 'aria-current': 'page' as const } : {};
-  return <nav className="views" aria-label="Today and your lists">
+  return <nav className="views" aria-label="Today, History and your lists">
     <ul>
       <li><a href={todayHref} {...current(route.screen === 'today')}>Today{todayLeft > 0 && <span className="count" aria-label={`, ${todayLeft} left`}>{todayLeft}</span>}</a></li>
+      <li><a href={historyHref()} {...current(route.screen === 'history')}>History</a></li>
       {lists.map(({ list, open }) => <li key={list.id}>
         <a href={listHref(list.id)} {...current(route.screen === 'list' && route.listId === list.id)}>
           {list.data!.title}{open > 0 && <span className="count" aria-label={`, ${open} open`}>{open}</span>}
