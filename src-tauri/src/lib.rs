@@ -1,6 +1,7 @@
 // Astir's native shell. It hosts the shared React UI and TypeScript sync engine (D12, D13) and
-// adds only what a browser can't: the tray, start-at-login, the quick-add shortcut, reminder toasts, the astir:// sign-in link, opening
-// the browser and the local SQLite file. Data logic never lives in Rust.
+// adds only what a browser can't: the tray, start-at-login, the quick-add shortcut, reminder
+// toasts, updates, the astir:// sign-in link, opening the browser and the local SQLite file. Data
+// logic never lives in Rust.
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -71,7 +72,10 @@ pub fn run() {
                 Some(vec![MINIMIZED_ARG]),
             ))
             // The quick-add shortcut (D35); the UI registers and changes it.
-            .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+            .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+            // Silent updates from GitHub Releases (D38); the UI decides when to install.
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init());
     }
 
     builder

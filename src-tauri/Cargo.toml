@@ -29,6 +29,8 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
 
 # Reminder toasts with click and dismiss callbacks (D36, D42), which the notification plugin lacks on Windows.
 [target.'cfg(windows)'.dependencies]

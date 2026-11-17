@@ -1,0 +1,91 @@
+# Builds the Windows app for a pushed vX.Y.Z tag (cut with /release) and publishes it on that tag's
+# GitHub Release, with latest.json for the app's updater (D18, D38). The installer is per-user and
+# unsigned for now, so Windows SmartScreen warns on first run (see the README).
+#
+# Needs two repository secrets, the updater's signing key and its password (README, "Releases"):
+#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows app
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Set up Rust
+        shell: bash
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the tag matches the app version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::Tag $TAG doesn't match package.json version $version."
+            exit 1
+          fi
+
+      - name: Build the installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run app:build
+
+      - name: Collect release files
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p release
+          installer=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe)
+          if [ ! -f "$installer.sig" ]; then
+            echo "::error::The installer has no updater signature. Are the signing secrets set?"
+            exit 1
+          fi
+          cp "$installer" "$installer.sig" release/
+          node scripts/updater-manifest.mjs "$TAG" "$REPO" "release/$(basename "$installer")" release/latest.json
+
+      - name: Upload release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-files
+          path: release/
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Release
+    needs: windows
+    permissions:
+      contents: write
+    uses: jmusick/ci/.github/workflows/release.yml@a8ac9c292577382c63e5a38af58d38a4cd6f8504 # v0.3.0
+    with:
+      artifact-name: release-files

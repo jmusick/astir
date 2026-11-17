@@ -39,18 +39,41 @@
   },
   "plugins": {
     "deep-link": {
-      "desktop": { "schemes": ["astir"] }
+      "desktop": {
+        "schemes": [
+          "astir"
+        ]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ0MjI5NjBBNDcxMDdDNTUKUldSVmZCQkhDcFlpUkFSQ3ZkTHFCZzZ3eCtGdnNiTjZFSzZuMUxtTHRBVEc5SUw5REtadTl5TjYK",
+      "endpoints": [
+        "https://github.com/jmusick/astir/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "quiet"
+      }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true,
+    "publisher": "Stone Dragon Media",
+    "shortDescription": "A daily to-do list that resets every day",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }

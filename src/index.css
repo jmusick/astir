@@ -257,3 +257,6 @@ main.quick-add { padding: .75rem .9rem; display: grid; gap: .35rem; }
 main.quick-add input { font-size: 1.15rem; padding: .7rem .85rem; border: 2px solid #6841be; }
 main.quick-add .hint, main.quick-add .form-error { margin: 0; font-size: .8rem; color: var(--muted); }
 kbd { font: inherit; font-weight: 700; padding: .05rem .4rem; border: 1px solid var(--line); border-radius: .35rem; }
+
+/* "Restart to update" in the app (#15) */
+.update-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .5rem 1rem; padding: .5rem 1rem; font-size: .9rem; background: color-mix(in srgb, #6841be 14%, var(--bg)); border-bottom: 1px solid var(--line); }
