@@ -38,13 +38,13 @@ describe('history', () => {
 
     const wednesday = historyDay(records, on(2), dayOf);
     expect(wednesday.habits.map((e) => [e.item.id, e.done])).toEqual([['walk', true], ['read', true]]);
-    expect(historyLabel(wednesday)).toBe('2 of 2 habits · 0 tasks done');
+    expect(historyLabel(wednesday)).toBe('2 of 2 repeating · 0 tasks done');
 
     const thursday = historyDay(records, on(3), dayOf);
     expect(thursday.habits.map((e) => [e.item.id, e.done])).toEqual([['walk', false]]);
     expect(thursday.tasks).toMatchObject([{ item: { id: 'call' } }, { item: { id: 'fix' }, listTitle: 'Home' }]);
     expect(thursday.tasks[0]).not.toHaveProperty('listTitle');
-    expect(historyLabel(thursday)).toBe('0 of 1 habit · 2 tasks done');
+    expect(historyLabel(thursday)).toBe('0 of 1 repeating · 2 tasks done');
     expect(historyDay(records, on(4), dayOf).tasks).toEqual([]);
   });
 

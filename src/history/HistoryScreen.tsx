@@ -15,7 +15,7 @@ interface Props {
 
 const clamp = (day: string, first: string, last: string) => day < first ? first : day > last ? last : day;
 
-/** Look back at any past day: habits done out of scheduled, and the tasks finished (D7). Read-only. */
+/** Look back at any past day: repeating tasks done out of scheduled, the tasks finished and the ones dropped (D7, D70). Read-only. */
 export default function HistoryScreen({ records, today, versions, requested }: Props) {
   const dayOf = useMemo(() => (editedAt: number) => dayAt(versions, editedAt), [versions]);
   const range = useMemo(() => historyRange(records, today, dayOf), [records, today, dayOf]);
@@ -46,7 +46,7 @@ export default function HistoryScreen({ records, today, versions, requested }: P
     </div>
     <div className="panels">
       <section className="panel habits" aria-labelledby="history-habits-heading">
-        <h2 id="history-habits-heading">Habits</h2>
+        <h2 id="history-habits-heading">Repeating</h2>
         {view.habits.length > 0 ? <ul>
           {view.habits.map(({ item, done }) => <li key={item.id} className={`item habit past${done ? ' done' : ''}`}>
             <div className="item-main">
@@ -56,16 +56,26 @@ export default function HistoryScreen({ records, today, versions, requested }: P
               {item.deleted && <span className="meta"><span className="chip">Removed</span></span>}
             </div>
           </li>)}
-        </ul> : <p className="empty">No habits were scheduled this day.</p>}
+        </ul> : <p className="empty">Nothing was scheduled to repeat this day.</p>}
       </section>
       <section className="panel tasks" aria-labelledby="history-tasks-heading">
-        <h2 id="history-tasks-heading">Tasks done</h2>
-        {view.tasks.length > 0 ? <ul>
+        <h2 id="history-tasks-heading">Tasks</h2>
+        {view.tasks.length + view.dropped.length > 0 ? <ul>
           {view.tasks.map(({ item, listTitle }) => <li key={item.id} className="item task past done">
             <div className="item-main">
               <span className="mark" aria-hidden="true" />
               <span className="title">{item.data!.title}</span>
+              <span className="sr-only">, done</span>
               {listTitle && <span className="meta"><span className="chip">{listTitle}</span></span>}
+            </div>
+          </li>)}
+          {/* A one-off set to drop leaves its trace here, on its last day (D70). */}
+          {view.dropped.map(({ item }) => <li key={item.id} className="item task past">
+            <div className="item-main">
+              <span className="mark" aria-hidden="true" />
+              <span className="title">{item.data!.title}</span>
+              <span className="sr-only">, not done</span>
+              <span className="meta"><span className="chip">Dropped</span></span>
             </div>
           </li>)}
         </ul> : <p className="empty">No tasks were checked off this day.</p>}

@@ -1,12 +1,16 @@
-import { daysBetween, weekdayOf } from './day';
+import { addDays, daysBetween } from './day';
 import { dueEntries } from './lists';
-import { blank, bottomPlace, byPosition, checkedAt, CLOCK_SLACK_MS, habitCompletionId, isCompleted, reorder, scheduleId, subtasksByParent, taskCompletionId, tombstone } from './records';
+import { blank, bottomPlace, checkedAt, CLOCK_SLACK_MS, habitCompletionId, isCompleted, reorder, scheduleId, subtasksByParent, taskCompletionId, tombstone } from './records';
 import type { Entry } from './records';
+import { carryEnds, missedOn, repeatsOn, sortedVersions, weekdaysOn } from './repeats';
+import type { Missed } from './repeats';
 import type { CompletionData, ItemData, ScheduleData, SyncRecord } from './types';
 
 // The daily list's model: what Today shows, and the full records each edit produces.
 // Everything here is pure, so it's shared by every client and tested without a browser.
 
+export type { Missed } from './repeats';
+export { defaultMissed } from './repeats';
 export { cleanNotes, cleanTitle, habitCompletionId, isCompleted, NOTES_MAX, repositioned, scheduleId, taskCompletionId, TITLE_MAX } from './records';
 export const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 /** Monday first, as most people read a week. Values are 0 (Sunday) to 6 (Saturday). */
@@ -28,16 +32,25 @@ export interface TodayEntry extends Entry {
   source: TodaySource;
   /** Its place in the one list (D47, D48). Null while it waits at the top until dragged (D54). */
   place: number | null;
+  /** Its usual place, which orders rows waiting at the top that tie (D54): its list place for a list task. */
+  usual: number;
   /** Subtasks of today-only and list tasks (D26); they don't count toward the ring. */
   subtasks?: Entry[];
-  /** Which day of its life a today-only task is on: 1 on its original day, 2 after one rollover (D41). */
+  /** Which day of its carry a task is on: 1 on its own day, 2 after one rollover (D41, D53). */
   dayCount?: number;
-  /** A habit's weekdays today, for the repeat marker (D47). */
+  /** The weekdays a repeating task repeats on today, for the repeat marker (D47). */
   repeats?: number[];
   /** A due list task's list name (D47). */
   listTitle?: string;
-  /** A due list task's days past its due date: 0 when due today. */
+  /**
+   * The day a carry or due date began: the missed occurrence's day, or a list task's due date.
+   * Such a row waits at the top until dragged, and a drag places it for that carry only (D54).
+   */
+  carry?: string;
+  /** Days since `carry`: how overdue a list task is, or how long a task has been carried. */
   overdue?: number;
+  /** The day its checkmark is recorded for, or null for a one-off's own itemId:task record. */
+  completionDay: string | null;
 }
 export interface TodayView {
   day: string;
@@ -63,15 +76,18 @@ export function todayPlace(data: ItemData): number {
   const position = data.position ?? 0;
   return data.kind === 'habit' ? position - LEGACY_HABIT_SHIFT : position;
 }
-/** A due list task has its own Today place for this due date only, separate from its list place (D54, D65). */
-const duePlace = (data: ItemData) => data.carryPosition != null && data.carryDay != null && data.carryDay === data.dueDay ? data.carryPosition : null;
+/**
+ * A carried or due task's place for this carry or due date only, separate from its usual place and
+ * its list place (D54, D65). Null until it's dragged during this one.
+ */
+const carryPlace = (data: ItemData, carry: string) => data.carryPosition != null && data.carryDay === carry ? data.carryPosition : null;
 
 /** Waiting rows first, most overdue first and then in their list's order; then everything else by place. */
 function byTodayOrder(a: TodayEntry, b: TodayEntry): number {
   if (a.place === null || b.place === null) {
     if (a.place !== null) return 1;
     if (b.place !== null) return -1;
-    return (b.overdue ?? 0) - (a.overdue ?? 0) || byPosition(a, b);
+    return (b.overdue ?? 0) - (a.overdue ?? 0) || a.usual - b.usual || a.item.id.localeCompare(b.item.id);
   }
   return a.place - b.place || a.item.id.localeCompare(b.item.id);
 }
@@ -110,10 +126,10 @@ export function carriedLabel(dayCount: number): string {
  * an edit time to its account day, which dates a task's checkmark.
  */
 export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string, dayOf: (editedAt: number) => string): TodayView {
-  const weekday = weekdayOf(day);
   const entries: TodayEntry[] = [];
   const schedules = schedulesByItem(records);
   const subtasks = subtasksByParent(records);
+  const checkedDays = completedDays(records);
   let isNew = true;
   for (const record of records.values()) {
     if (record.entity === 'list' && !record.deleted && record.data) isNew = false;
@@ -121,28 +137,54 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
     isNew = false;
     const item = record as SyncRecord<ItemData>;
     const data = item.data!;
+    if (data.parentId || (data.kind !== 'habit' && data.kind !== 'today')) continue;
+    const sorted = sortedVersions(schedules.get(item.id));
+    const weekdays = weekdaysOn(sorted, day);
+    const repeats = weekdays.length ? { repeats: weekdays } : {};
+    const scheduled = repeatsOn(data, sorted, day);
     if (data.kind === 'habit') {
-      if (!data.createdDay || data.createdDay > day) continue;
-      const schedule = scheduleOn(schedules.get(item.id), day);
-      if (!schedule?.weekdays.includes(weekday)) continue;
-      entries.push({ item, source: 'habit', place: todayPlace(data), done: isCompleted(records, habitCompletionId(item.id, day)), repeats: schedule.weekdays });
-    } else if (data.kind === 'today' && !data.parentId) {
-      const original = data.originalDay;
-      if (!original || original > day) continue;
-      const checked = checkedAt(records, item.id);
-      // Checked before this day: it was finished on an earlier day and doesn't roll over.
-      if (checked !== null && original < day && dayOf(checked) < day) continue;
-      // Edit stamps may run a few minutes ahead (D32 clamps at five), so a check just before the
-      // reset still counts for the day it was made.
-      const done = checked !== null && dayOf(checked - CLOCK_SLACK_MS) <= day;
-      entries.push({ item, source: 'today', place: todayPlace(data), done, subtasks: subtasks.get(item.id) ?? [], dayCount: daysBetween(original, day) + 1 });
+      if (scheduled) entries.push({ item, source: 'habit', place: todayPlace(data), usual: todayPlace(data), done: isCompleted(records, habitCompletionId(item.id, day)), completionDay: day, ...repeats });
+      continue;
     }
+    const original = data.originalDay;
+    if (!original || original > day) continue;
+    // The one-off's own occurrence: on its day, then carried until it's checked unless it's set to drop (D5, D52).
+    const checked = checkedAt(records, item.id);
+    const settledBefore = (checked !== null && original < day && dayOf(checked) < day)
+      || (checkedDays.get(item.id) ?? []).some((d) => d >= original && d < day);
+    const ends = carryEnds(data.kind, sorted, original);
+    const pending = day === original || (!settledBefore && (ends === null || ends > day));
+    // Edit stamps may run a few minutes ahead (D32 clamps at five), so a check just before the
+    // reset still counts for the day it was made.
+    const doneHere = checked !== null && !settledBefore && dayOf(checked - CLOCK_SLACK_MS) <= day;
+    if (!pending && !scheduled) continue;
+    const carry = pending && day > original ? original : undefined;
+    const carried = carry ? { carry, overdue: daysBetween(carry, day), dayCount: daysBetween(carry, day) + 1 } : { dayCount: 1 };
+    const shared = { item, source: 'today' as const, usual: todayPlace(data), subtasks: subtasks.get(item.id) ?? [], ...repeats, ...carried };
+    const place = carry ? carryPlace(data, carry) : todayPlace(data);
+    // A repeat on a day it's still carried shows once; checking it settles both (D53).
+    if (scheduled) entries.push({ ...shared, place, completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)) || (pending && doneHere) });
+    else entries.push({ ...shared, place, completionDay: null, done: doneHere });
   }
-  for (const due of dueEntries(records, day, dayOf, subtasks)) entries.push({ ...due, source: 'list', place: duePlace(due.item.data!) });
+  for (const due of dueEntries(records, day, dayOf, subtasks)) {
+    const carry = due.item.data!.dueDay!;
+    entries.push({ ...due, source: 'list', carry, place: carryPlace(due.item.data!, carry), usual: due.item.data!.position ?? 0, completionDay: null });
+  }
   entries.sort(byTodayOrder);
   const total = entries.length;
   const done = entries.filter((entry) => entry.done).length;
   return { day, entries, done, total, percent: total ? Math.round((done / total) * 100) : 0, isNew };
+}
+
+/** The days each item has a live, checked per-day completion for. */
+export function completedDays(records: ReadonlyMap<string, SyncRecord>): Map<string, string[]> {
+  const byItem = new Map<string, string[]>();
+  for (const record of records.values()) {
+    if (record.entity !== 'completion' || record.deleted || !record.data) continue;
+    const data = record.data as CompletionData;
+    if (data.day && data.completed) byItem.set(data.itemId, [...byItem.get(data.itemId) ?? [], data.day]);
+  }
+  return byItem;
 }
 
 /** "2 done · 3 to go" */
@@ -157,15 +199,36 @@ export function normalizeWeekdays(weekdays: number[]): number[] {
 // Record builders. editedAt is a placeholder: SyncEngine.change stamps the real edit time.
 const record = blank;
 
-/** A new habit and its first schedule version, effective on the day it's created (D40). */
-export function newHabit(id: string, title: string, weekdays: number[], day: string, position: number): SyncRecord[] {
+/** A new repeating task and its first schedule version, effective on the day it's created (D40, D73). */
+export function newHabit(id: string, title: string, weekdays: number[], day: string, position: number, missed: Missed = 'drop'): SyncRecord[] {
   const item: ItemData = { kind: 'habit', title, createdDay: day, position, todayPosition: position };
-  const schedule: ScheduleData = { itemId: id, effectiveDay: day, weekdays: normalizeWeekdays(weekdays) };
+  const schedule: ScheduleData = { itemId: id, effectiveDay: day, weekdays: normalizeWeekdays(weekdays), missed };
   return [record('item', id, item), record('schedule', scheduleId(id, day), schedule)];
 }
 
-export function newTodayTask(id: string, title: string, day: string, position: number): SyncRecord[] {
-  return [record('item', id, { kind: 'today', title, originalDay: day, position, todayPosition: position } satisfies ItemData)];
+/** A new one-off task. Rolling over is its default (D52), so only a drop needs a schedule version saying so. */
+export function newTodayTask(id: string, title: string, day: string, position: number, missed: Missed = 'carry'): SyncRecord[] {
+  const item = record('item', id, { kind: 'today', title, originalDay: day, position, todayPosition: position } satisfies ItemData);
+  if (missed === 'carry') return [item];
+  return [item, record('schedule', scheduleId(id, day), { itemId: id, effectiveDay: day, weekdays: [], missed } satisfies ScheduleData)];
+}
+
+/** A daily task's repeat and missed setting as they'll be from the next reset. */
+export function upcomingRepeat(records: ReadonlyMap<string, SyncRecord>, item: SyncRecord<ItemData>, day: string): { weekdays: number[]; missed: Missed } {
+  const sorted = sortedVersions(schedulesByItem(records).get(item.id));
+  const next = addDays(day, 1);
+  return { weekdays: weekdaysOn(sorted, next), missed: missedOn(item.data!.kind, sorted, next) };
+}
+
+/**
+ * Change a daily task's repeat (no weekdays: once) or missed setting from the next reset (D51, D52).
+ * Today stays as it is, and past days keep what applied then (D40). A second change before the
+ * reset replaces the first, since both are versions for the same day.
+ */
+export function repeatChanged(item: SyncRecord<ItemData>, day: string, weekdays: number[], missed: Missed): SyncRecord[] {
+  const effectiveDay = addDays(day, 1);
+  const normalized = weekdays.length ? normalizeWeekdays(weekdays) : [];
+  return [record('schedule', scheduleId(item.id, effectiveDay), { itemId: item.id, effectiveDay, weekdays: normalized, missed } satisfies ScheduleData)];
 }
 
 /** Where a new habit or today-only task goes: below everything on Today (D50). */
@@ -185,11 +248,17 @@ export function todayBottom(records: ReadonlyMap<string, SyncRecord>, now: numbe
 export function reorderedToday(entries: readonly TodayEntry[], from: number, to: number): SyncRecord[] {
   return reorder(entries, (entry) => entry.place, from, to).map(({ item: entry, place }) => ({
     ...entry.item,
-    data: entry.source === 'list'
-      // A due list task's Today place lasts for this due date only, and never moves it in its list (D65).
-      ? { ...entry.item.data!, carryPosition: place, carryDay: entry.item.data!.dueDay ?? null }
+    data: entry.carry
+      // A carried or due task's place lasts for this carry only, and never moves a list task in its list (D54, D65).
+      ? { ...entry.item.data!, carryPosition: place, carryDay: entry.carry }
       : { ...entry.item.data!, todayPosition: place },
   }));
+}
+
+/** Check or uncheck a Today row, on the record its day uses (D53). */
+export function checkedOff(entry: Pick<TodayEntry, 'item' | 'completionDay'>, completed: boolean): SyncRecord[] {
+  const data: CompletionData = { itemId: entry.item.id, day: entry.completionDay, completed };
+  return [record('completion', entry.completionDay ? habitCompletionId(entry.item.id, entry.completionDay) : taskCompletionId(entry.item.id), data)];
 }
 
 /** Check or uncheck. Unchecking is an edit (completed: false), never a delete. */

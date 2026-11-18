@@ -57,3 +57,28 @@ describe('0004_dismissals', () => {
     db.close();
   });
 });
+
+describe('0006_repeating_tasks', () => {
+  it('keeps existing records and lets today-only tasks hold schedules and per-day completions', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec('PRAGMA foreign_keys = ON');
+    for (const file of ['0001_accounts.sql', '0002_sync.sql', '0003_day_settings.sql', '0004_dismissals.sql', '0005_device_tokens.sql']) db.exec(sql(file));
+    db.exec(`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', 1);
+      INSERT INTO sync_records (user_id, entity, id, edited_at, deleted, data) VALUES
+        ('u', 'item', 't', 5, 0, '{"kind":"today","title":"Call","originalDay":"2026-11-16"}');`);
+    const before = db.prepare('SELECT entity, id, edited_at, deleted, data, revision FROM sync_records ORDER BY revision').all();
+    const insert = (entity: string, id: string, data: unknown) => db.prepare("INSERT INTO sync_records (user_id, entity, id, edited_at, deleted, data) VALUES ('u', ?, ?, 1, 0, ?)")
+      .run(entity, id, JSON.stringify(data));
+    expect(() => insert('completion', 't:2026-11-17', { itemId: 't', day: '2026-11-17', completed: true })).toThrow(/Invalid record reference/);
+
+    db.exec(sql('0006_repeating_tasks.sql'));
+    expect(db.prepare('SELECT entity, id, edited_at, deleted, data, revision FROM sync_records ORDER BY revision').all()).toEqual(before);
+    insert('completion', 't:2026-11-17', { itemId: 't', day: '2026-11-17', completed: true });
+    insert('schedule', 't:2026-11-17', { itemId: 't', effectiveDay: '2026-11-17', weekdays: [1] });
+    expect(db.prepare('SELECT revision FROM sync_records WHERE id = ? AND entity = ?').get('t:2026-11-17', 'schedule')?.revision).toBe(3);
+    // Still refused: days before the task's own day, and missing items.
+    expect(() => insert('completion', 't:2026-11-15', { itemId: 't', day: '2026-11-15', completed: true })).toThrow(/Invalid record reference/);
+    expect(() => insert('schedule', 'x:2026-11-17', { itemId: 'x', effectiveDay: '2026-11-17', weekdays: [1] })).toThrow(/Invalid record reference/);
+    db.close();
+  });
+});

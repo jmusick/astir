@@ -1,5 +1,6 @@
-import { addDays, dayAt, settingsOn, weekdayOf, zonedInstant } from './day';
-import { scheduleOn, schedulesByItem } from './daily';
+import { addDays, dayAt, settingsOn, zonedInstant } from './day';
+import { schedulesByItem } from './daily';
+import { repeatsOn, sortedVersions } from './repeats';
 import { blank, checkedAt, habitCompletionId, isCompleted, live, taskCompletionId } from './records';
 import { recordKey } from './types';
 import type { DayData, DismissalData, ItemData, SyncRecord } from './types';
@@ -52,15 +53,18 @@ export function remindersDue(records: ReadonlyMap<string, SyncRecord>, versions:
     const add = (id: string, day: string | null, at: number) => {
       if (at > from && at <= to && !isDismissed(records, id, data.reminder!)) due.push({ item, id, day, reminder: data.reminder!, at });
     };
-    if (data.kind === 'habit') {
-      // Capped so a long gap can't loop for ages; such a window is filtered by its caller anyway.
+    if (data.kind === 'habit' || data.kind === 'today') {
+      // Each day a task repeats on, including a one-off made repeating (D51). Capped so a long gap
+      // can't loop for ages; such a window is filtered by its caller anyway.
+      const sorted = sortedVersions(schedules.get(item.id));
       for (let day = firstDay, n = 0; day <= lastDay && n < 3; day = addDays(day, 1), n++) {
-        if (!data.createdDay || day < data.createdDay) continue;
-        if (!scheduleOn(schedules.get(item.id), day)?.weekdays.includes(weekdayOf(day))) continue;
+        if (!repeatsOn(data, sorted, day)) continue;
         if (isCompleted(records, habitCompletionId(item.id, day))) continue;
         add(habitCompletionId(item.id, day), day, reminderInstant(versions, day, data.reminder));
       }
-    } else if (checkedAt(records, item.id) === null) {
+      if (data.kind === 'habit') continue;
+    }
+    if (checkedAt(records, item.id) === null) {
       const at = data.kind === 'today' ? data.originalDay ? reminderInstant(versions, data.originalDay, data.reminder) : NaN : Date.parse(data.reminder);
       if (Number.isFinite(at)) add(taskCompletionId(item.id), null, at);
     }

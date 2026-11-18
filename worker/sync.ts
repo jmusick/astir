@@ -50,12 +50,15 @@ function dataOf(entity: Entity, value: unknown): Data {
     return { title: text(d.title, 'Title', SYNC_LIMITS.title, true), position: position(d.position) };
   }
   if (entity === 'schedule') {
-    fields(d, ['itemId', 'effectiveDay', 'weekdays']);
-    if (!Array.isArray(d.weekdays) || !d.weekdays.length || d.weekdays.length > 7
+    fields(d, ['itemId', 'effectiveDay', 'weekdays', 'missed']);
+    // No weekdays means it doesn't repeat from this version on (D51).
+    if (!Array.isArray(d.weekdays) || d.weekdays.length > 7
       || d.weekdays.some((v) => !Number.isInteger(v) || v < 0 || v > 6) || new Set(d.weekdays).size !== d.weekdays.length) {
       throw new SyncError('Choose distinct weekdays from 0 (Sunday) to 6 (Saturday).');
     }
-    return { itemId: id(d.itemId), effectiveDay: day(d.effectiveDay), weekdays: [...d.weekdays].sort() };
+    // The missed setting (D52). Null keeps the previous version's, so clients that predate it keep working (D72).
+    if (d.missed != null && d.missed !== 'drop' && d.missed !== 'carry') throw new SyncError('missed must be drop or carry.');
+    return { itemId: id(d.itemId), effectiveDay: day(d.effectiveDay), weekdays: [...d.weekdays].sort(), missed: (d.missed as string | undefined) ?? null };
   }
   if (entity === 'day') {
     fields(d, ['effectiveDay', 'timeZone', 'startHour']);

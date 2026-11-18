@@ -1,6 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { cleanNotes, cleanTitle, edited, NOTES_MAX, removed, renamed, repositioned, setCompleted, TITLE_MAX } from '../sync/daily';
+import { cleanNotes, cleanTitle, describeDays, edited, EVERY_DAY, NOTES_MAX, removed, renamed, repeatChanged, repositioned, setCompleted, TITLE_MAX, upcomingRepeat } from '../sync/daily';
+import type { Missed } from '../sync/daily';
+import { weekdayOf } from '../sync/day';
+import { MissedFields, RepeatFields } from './AddForms';
+import type { Repeat } from './AddForms';
 import { wallTime, zonedInstant } from '../sync/day';
 import { newSubtask } from '../sync/lists';
 import { requestNotifications, useNotificationPermission } from '../reminders/permission';
@@ -18,13 +22,17 @@ interface Props {
   /** The account's time zone: a list task's reminder is a date and time there (D30, D42). */
   timeZone: string;
   save: (records: SyncRecord[]) => void;
+  /** All records, for a daily task's repeat and missed setting; Today passes them. */
+  records?: ReadonlyMap<string, SyncRecord>;
 }
 
 /** The fields D26 gives each kind: notes and a reminder for all, a due date and subtasks for some. */
-export default function ItemDetails({ item, subtasks, day, timeZone, save }: Props) {
+export default function ItemDetails({ item, subtasks, day, timeZone, save, records }: Props) {
   const data = item.data!;
   const id = useId();
   const listTask = data.kind === 'task';
+  const daily = !!records && (data.kind === 'habit' || data.kind === 'today') && !data.parentId;
+  const upcoming = daily ? upcomingRepeat(records!, item, day) : null;
   const permission = useNotificationPermission();
   const [notes, setNotes] = useState(data.notes ?? '');
   const [notesError, setNotesError] = useState('');
@@ -75,7 +83,7 @@ export default function ItemDetails({ item, subtasks, day, timeZone, save }: Pro
           }} />
       </label>}
       <label className="field">
-        <span>Reminder{listTask ? '' : data.kind === 'habit' ? ' each day' : ' today'}</span>
+        <span>Reminder{listTask ? '' : data.kind === 'habit' || upcoming?.weekdays.length ? ' each day' : ' today'}</span>
         <input type={listTask ? 'datetime-local' : 'time'} key={reminderValue} defaultValue={reminderValue}
           onBlur={(e) => { if (!e.target.validity.badInput) saveReminder(e.target.value); }} />
       </label>
@@ -85,6 +93,7 @@ export default function ItemDetails({ item, subtasks, day, timeZone, save }: Pro
       : permission === 'denied' ? 'Notifications are blocked for Astir in this browser, so reminders can’t pop up. Allow them in the site settings.'
       : permission === 'unsupported' ? 'This browser can’t show notifications, so reminders can’t pop up here.'
       : 'Turn on notifications to have reminders pop up while Astir is open in a tab.'}</p>}
+    {upcoming && <RepeatSettings key={JSON.stringify(upcoming)} item={item} upcoming={upcoming} day={day} save={save} />}
     {subtasks && <div className="subtasks" aria-labelledby={`${id}-subtasks`}>
       <h3 id={`${id}-subtasks`}>Subtasks</h3>
       {subtasks.length > 0 && <Sortable items={subtasks} keyOf={(sub) => sub.item.id} labelOf={(sub) => sub.item.data!.title}
@@ -117,5 +126,36 @@ function AddSubtaskForm({ parentTitle, onAdd }: { parentTitle: string; onAdd: (t
       <button type="submit">Add</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
+  </form>;
+}
+
+/**
+ * A daily task's repeat and missed setting (D51, D52). Edits wait for Save, then apply from the next
+ * reset; today's list stays as it is. Keyed by the saved setting, so a synced change resets the draft.
+ */
+function RepeatSettings({ item, upcoming, day, save }: { item: SyncRecord<ItemData>; upcoming: { weekdays: number[]; missed: Missed }; day: string; save: (records: SyncRecord[]) => void }) {
+  const id = useId();
+  const initial: Repeat = !upcoming.weekdays.length ? 'once' : upcoming.weekdays.length === 7 ? 'every-day' : 'chosen';
+  const [repeat, setRepeat] = useState<Repeat>(initial);
+  const [chosen, setChosen] = useState<number[]>(upcoming.weekdays.length ? upcoming.weekdays : [weekdayOf(day)]);
+  const [missed, setMissed] = useState<Missed>(upcoming.missed);
+  const [error, setError] = useState('');
+  const weekdays = repeat === 'once' ? [] : repeat === 'every-day' ? EVERY_DAY : [...chosen].sort((a, b) => a - b);
+  const changed = weekdays.join() !== upcoming.weekdays.join() || missed !== upcoming.missed;
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (repeat === 'chosen' && !chosen.length) { setError('Choose at least one day.'); return; }
+    setError('');
+    save(repeatChanged(item, day, weekdays, missed));
+  }
+  return <form className="repeat-settings" onSubmit={submit} aria-labelledby={`${id}-repeat`}>
+    <h3 id={`${id}-repeat`}>Repeats</h3>
+    <RepeatFields name={`${id}-repeat-choice`} repeat={repeat} chosen={chosen} onRepeat={setRepeat} onChosen={setChosen} />
+    <MissedFields name={`${id}-missed`} missed={missed} onMissed={setMissed} />
+    <p className="hint">{upcoming.weekdays.length ? `Repeats ${upcoming.weekdays.length === 7 ? 'every day' : `on ${describeDays(upcoming.weekdays)}`}` : 'Doesn’t repeat'}
+      {upcoming.missed === 'drop' ? ', and drops off when missed.' : ', and rolls over when missed.'} Changes start at your next reset.</p>
+    {error && <p className="form-error" role="alert">{error}</p>}
+    {changed && <p><button type="submit" className="quiet">Save from the next reset</button></p>}
   </form>;
 }

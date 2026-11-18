@@ -1,10 +1,11 @@
-import { schedulesByItem, scheduleOn } from './daily';
-import { addDays, weekdayOf } from './day';
+import { completedDays, schedulesByItem } from './daily';
+import { addDays } from './day';
 import type { ListData } from './lists';
 import { byPosition, checkedAt, CLOCK_SLACK_MS, habitCompletionId, isCompleted } from './records';
 import type { Entry } from './records';
 import { recordKey } from './types';
-import type { ItemData, SyncRecord } from './types';
+import type { ItemData, ScheduleData, SyncRecord } from './types';
+import { carryEnds, repeatsOn, sortedVersions } from './repeats';
 
 // Looking back at past days (D7). Nothing is snapshotted at the reset: a day is recomputed from
 // the versioned schedules (D40) and the completion records (D39), so history never rewrites
@@ -18,11 +19,13 @@ export interface HistoryTask {
 
 export interface HistoryDay {
   day: string;
-  /** Habits scheduled that day, done or not. */
+  /** Repeating tasks scheduled that day, done or not. */
   habits: Entry[];
   habitsDone: number;
   /** Today-only and named-list tasks checked off that day. */
   tasks: HistoryTask[];
+  /** One-off tasks set to drop that left Today unfinished after this day, their last on it (D70). */
+  dropped: HistoryTask[];
 }
 
 type DayOf = (editedAt: number) => string;
@@ -66,26 +69,46 @@ const isTopLevelTask = (data: ItemData) => (data.kind === 'today' || data.kind =
 
 /** What was done on a past day: habits done out of habits scheduled, and the tasks finished. */
 export function historyDay(records: ReadonlyMap<string, SyncRecord>, day: string, dayOf: DayOf): HistoryDay {
-  const weekday = weekdayOf(day);
   const schedules = schedulesByItem(records);
   const habits: Entry[] = [];
   const tasks: { task: HistoryTask; at: number }[] = [];
+  const dropped: HistoryTask[] = [];
+  const checkedDays = completedDays(records);
   for (const item of itemsWithData(records)) {
     const data = item.data!;
-    if (data.kind === 'habit') {
-      if (!presentOn(item, day, dayOf, () => isCompleted(records, habitCompletionId(item.id, day)))) continue;
-      // A habit counts from the day it was created, that day included (D40).
-      if (!data.createdDay || data.createdDay > day) continue;
-      if (!scheduleOn(schedules.get(item.id), day)?.weekdays.includes(weekday)) continue;
+    const sorted = data.parentId ? [] : sortedVersions(schedules.get(item.id));
+    // A repeating task counts from the day it was created, that day included (D40); a one-off made
+    // repeating counts on the days it repeats on after its own (D51).
+    if ((data.kind === 'habit' || (data.kind === 'today' && !data.parentId)) && repeatsOn(data, sorted, day)
+      && presentOn(item, day, dayOf, () => isCompleted(records, habitCompletionId(item.id, day)))) {
       habits.push({ item, done: isCompleted(records, habitCompletionId(item.id, day)) });
-    } else if (isTopLevelTask(data) && finishedOnDay(records, item, day, dayOf) && presentOn(item, day, dayOf, () => false)) {
+    }
+    if (data.kind === 'today' && !data.parentId && data.originalDay && droppedOn(data.originalDay, sorted, checkedAt(records, item.id), checkedDays.get(item.id)) === day
+      && presentOn(item, day, dayOf, () => false)) {
+      dropped.push({ item });
+    }
+    if (data.kind === 'habit') continue;
+    if (isTopLevelTask(data) && finishedOnDay(records, item, day, dayOf) && presentOn(item, day, dayOf, () => false)) {
       const list = data.listId ? records.get(recordKey('list', data.listId))?.data as ListData | null | undefined : undefined;
       tasks.push({ task: { item, ...(data.listId ? { listTitle: list?.title ?? 'A list' } : {}) }, at: checkedAt(records, item.id)! });
     }
   }
   habits.sort(byPosition);
   tasks.sort((a, b) => a.at - b.at || byPosition(a.task, b.task));
-  return { day, habits, habitsDone: habits.filter((entry) => entry.done).length, tasks: tasks.map(({ task }) => task) };
+  dropped.sort(byPosition);
+  return { day, habits, habitsDone: habits.filter((entry) => entry.done).length, tasks: tasks.map(({ task }) => task), dropped };
+}
+
+/**
+ * The last day an unfinished one-off was on Today before its missed setting dropped it (D52, D70):
+ * its own day, or the last day of its carry. Null while it's still carried, or once it's checked.
+ */
+function droppedOn(original: string, sorted: readonly ScheduleData[], checked: number | null, checkedDays: readonly string[] = []): string | null {
+  if (checked !== null) return null;
+  const ends = carryEnds('today', sorted, original);
+  if (ends === null) return null;
+  const last = addDays(ends, -1);
+  return checkedDays.some((d) => d >= original && d <= last) ? null : last;
 }
 
 /**
@@ -122,9 +145,9 @@ export function historyRange(records: ReadonlyMap<string, SyncRecord>, today: st
 export const isCalendarDay = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) && !Number.isNaN(Date.parse(`${day}T00:00:00Z`))
   && new Date(`${day}T00:00:00Z`).toISOString().slice(0, 10) === day;
 
-/** "3 of 4 habits · 2 tasks done" */
+/** "3 of 4 repeating · 2 tasks done · 1 dropped" */
 export function historyLabel(view: HistoryDay): string {
-  const habits = view.habits.length ? `${view.habitsDone} of ${view.habits.length} ${view.habits.length === 1 ? 'habit' : 'habits'}` : 'No habits scheduled';
+  const habits = view.habits.length ? `${view.habitsDone} of ${view.habits.length} repeating` : 'Nothing repeating';
   const tasks = view.tasks.length === 1 ? '1 task done' : `${view.tasks.length} tasks done`;
-  return `${habits} · ${tasks}`;
+  return `${habits} · ${tasks}${view.dropped.length ? ` · ${view.dropped.length} dropped` : ''}`;
 }

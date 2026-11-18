@@ -58,8 +58,8 @@ describe('one Today list', () => {
     expect(changes.map((r) => r.id)).toEqual(['ship']);
     apply(records, changes);
     expect(ids(records)).toEqual(['walk', 'ship', 'read', 'stretch', 'call']);
-    // The same order the next day, when the unfinished tasks roll over, and on another device.
-    expect(ids(records, TUESDAY)).toEqual(['walk', 'ship', 'read', 'stretch', 'call']);
+    // The next day the unfinished tasks roll over to the top, in their usual order (D54).
+    expect(ids(records, TUESDAY)).toEqual(['ship', 'call', 'walk', 'read', 'stretch']);
     expect(ids(store([...records.values()]))).toEqual(['walk', 'ship', 'read', 'stretch', 'call']);
   });
 

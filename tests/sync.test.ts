@@ -64,6 +64,23 @@ describe('sync model and conflicts', () => {
     expect((await push([today('bad', { todayPosition: 'top' })])).status).toBe(400);
     expect((await push([today('bad', { carryDay: '2026-13-01' })])).status).toBe(400);
   });
+  it('lets a one-off task repeat and hold a missed setting from its original day on', async () => {
+    const versions = [
+      change('schedule', `today:${DAY}`, { itemId: 'today', effectiveDay: DAY, weekdays: [], missed: 'drop' }),
+      change('schedule', 'today:2026-11-17', { itemId: 'today', effectiveDay: '2026-11-17', weekdays: [1, 3] }),
+      change('schedule', 'habit:2026-11-18', { itemId: 'habit', effectiveDay: '2026-11-18', weekdays: [], missed: 'carry' }),
+    ];
+    expect((await push([today(), habit(), schedule(), ...versions, completion('today', '2026-11-18'), completion('today')])).status).toBe(200);
+    const page = await pull();
+    expect(page.changes.find((c) => c.id === `today:${DAY}`)?.data).toMatchObject({ weekdays: [], missed: 'drop' });
+    expect(page.changes.find((c) => c.id === 'today:2026-11-17')?.data).toMatchObject({ weekdays: [1, 3], missed: null });
+    expect(page.changes.find((c) => c.id === 'today:2026-11-18')?.data).toMatchObject({ day: '2026-11-18', completed: true });
+    for (const c of [change('schedule', 'today:2026-11-15', { itemId: 'today', effectiveDay: '2026-11-15', weekdays: [1] }),
+      change('schedule', 'today:2026-11-19', { itemId: 'today', effectiveDay: '2026-11-19', weekdays: [1], missed: 'later' }),
+      change('schedule', 'child:2026-11-19', { itemId: 'child', effectiveDay: '2026-11-19', weekdays: [1] })]) {
+      expect((await push([today('child', { parentId: 'today' }), c])).status, JSON.stringify(c)).toBe(400);
+    }
+  });
   it('uses client edit times, keeps equal-time first writers, and does not allocate revisions for retries', async () => {
     await push([list('work', NOW - 100)]);
     const page = await pull();
@@ -119,7 +136,7 @@ describe('sync model and conflicts', () => {
   });
   it('rejects deep subtasks, cross-list parents, wrong completion days and changes to item identity', async () => {
     await push([today(), today('child', { parentId: 'today' }), habit(), list()]);
-    for (const c of [today('grandchild', { parentId: 'child' }), completion('today', DAY), completion('habit'),
+    for (const c of [today('grandchild', { parentId: 'child' }), completion('today', '2026-11-15'), completion('habit'),
       schedule('2026-11-15'), today('today', { parentId: 'child' }, NOW + 10),
       change('item', 'bad-task', { kind: 'task', title: 'Bad', listId: 'work', parentId: 'today' })]) {
       expect((await push([c])).status, JSON.stringify(c)).toBe(400);
@@ -142,7 +159,7 @@ describe('reminder dismissals', () => {
   });
   it('rejects bad IDs, reminders, fields and references', async () => {
     await push([habit(), today()]);
-    for (const c of [dismissal('missing', null, '09:00'), dismissal('habit', null, '09:00'), dismissal('today', DAY, '09:00'),
+    for (const c of [dismissal('missing', null, '09:00'), dismissal('habit', null, '09:00'), dismissal('today', '2026-11-15', '09:00'),
       dismissal('habit', '2026-11-15', '09:00'), dismissal('today', null, '9am'), dismissal('today', null, `${DAY}T17:30:00Z`),
       { ...dismissal('today', null, '09:00'), id: `today:${DAY}` },
       change('dismissal', 'today:task', { itemId: 'today', day: null, reminder: '09:00', extra: 1 })]) {

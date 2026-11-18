@@ -14,6 +14,8 @@ export interface ExportedDay {
   day: string;
   habits: { id: string; title: string; done: boolean }[];
   tasks: { id: string; title: string; list?: string }[];
+  /** One-off tasks dropped unfinished after this day (D70). */
+  dropped?: { id: string; title: string }[];
 }
 export interface AstirExport {
   format: typeof EXPORT_FORMAT;
@@ -48,11 +50,12 @@ export function exportData(records: ReadonlyMap<string, SyncRecord>, email: stri
   const range = historyRange(records, dayAt(versions, now), dayOf);
   for (let day = range?.first; range && day && day <= range.last; day = addDays(day, 1)) {
     const view = historyDay(records, day, dayOf);
-    if (!view.habits.length && !view.tasks.length) continue;
+    if (!view.habits.length && !view.tasks.length && !view.dropped.length) continue;
     history.push({
       day,
       habits: view.habits.map(({ item, done }) => ({ id: item.id, title: item.data!.title, done })),
       tasks: view.tasks.map(({ item, listTitle }) => ({ id: item.id, title: item.data!.title, ...(listTitle ? { list: listTitle } : {}) })),
+      ...(view.dropped.length ? { dropped: view.dropped.map(({ item }) => ({ id: item.id, title: item.data!.title })) } : {}),
     });
   }
   return {

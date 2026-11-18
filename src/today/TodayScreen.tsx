@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { authApi } from '../authApi';
 import type { Account } from '../authApi';
 import { forgetAccount } from '../rememberedAccount';
-import { newHabit, newTodayTask, removed, renamed, reorderedToday, repeatLabel, setCompleted, todayBottom, todayView } from '../sync/daily';
+import { checkedOff, newHabit, newTodayTask, removed, renamed, reorderedToday, repeatLabel, setCompleted, todayBottom, todayView } from '../sync/daily';
 import { dueLabel, listSummaries, newList } from '../sync/lists';
 import { addDays, changeDaySettings, dayAt, dayLabel, dayVersions, deviceTimeZone, firstDaySettings, hourLabel, settingsOn } from '../sync/day';
 import type { DayData, ItemData, SyncRecord } from '../sync/types';
@@ -205,15 +205,15 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
                     kind={entry.source === 'habit' ? 'habit' : 'task'} dayCount={entry.dayCount}
                     meta={<ItemMeta subtasks={entry.subtasks} repeats={entry.repeats && repeatLabel(entry.repeats)} from={entry.listTitle}
                       due={entry.source === 'list' ? { label: dueLabel(entry.item.data!.dueDay!, day), late: (entry.overdue ?? 0) > 0 && !entry.done } : undefined} />}
-                    details={() => <ItemDetails item={entry.item} subtasks={entry.subtasks} day={day} timeZone={zone} save={save} />}
-                    onToggle={(checked) => save(setCompleted(entry.item, day, checked))}
+                    details={() => <ItemDetails item={entry.item} subtasks={entry.subtasks} day={day} timeZone={zone} save={save} records={snapshot!.records} />}
+                    onToggle={(checked) => save(entry.source === 'list' ? setCompleted(entry.item, day, checked) : checkedOff(entry, checked))}
                     onRename={(title) => save(renamed(entry.item, title))}
                     onDelete={() => save(removed(entry.item, snapshot!.records))} />} />
               : <p className="empty">{view.isNew ? 'Add a task below. It can be just for today, or repeat every day or on the days you choose.' : 'Nothing planned for today.'}</p>}
-            <AddTodayForm key={day} day={day} first={view.isNew} onAdd={(title, weekdays) => {
+            <AddTodayForm key={day} day={day} first={view.isNew} onAdd={(title, weekdays, missed) => {
               const id = crypto.randomUUID();
               const place = todayBottom(snapshot!.records, Date.now());
-              save(weekdays ? newHabit(id, title, weekdays, day, place) : newTodayTask(id, title, day, place));
+              save(weekdays ? newHabit(id, title, weekdays, day, place, missed) : newTodayTask(id, title, day, place, missed));
             }} />
           </section>
         </>}</div>

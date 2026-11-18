@@ -31,7 +31,11 @@ export interface ItemData {
   carryPosition?: number | null;
   carryDay?: string | null;
 }
-export interface ScheduleData { itemId: string; effectiveDay: string; weekdays: number[] }
+/**
+ * A daily task's repeat and missed setting from effectiveDay on (D40, D51, D52). No weekdays means it
+ * doesn't repeat; a null or absent `missed` keeps the previous version's.
+ */
+export interface ScheduleData { itemId: string; effectiveDay: string; weekdays: number[]; missed?: 'drop' | 'carry' | null }
 export interface CompletionData { itemId: string; day: string | null; completed: boolean }
 /** A reminder the user dismissed, so other devices skip it (D42). `reminder` is the time it was for. */
 export interface DismissalData { itemId: string; day: string | null; reminder: string }

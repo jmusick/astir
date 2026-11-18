@@ -4,7 +4,15 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Any task on Today can repeat. When you add one, choose Once, Every day or Chosen days, and choose what happens if it's missed: drop it, or roll it over to the next day. Repeating tasks start out set to drop and one-off tasks to roll over, as before, but you can pick either. Open a task's details to change its repeat or missed setting later, including turning a one-off into a repeating task or back; the change starts at your next reset, and past days in History stay as they were.
+- A one-off task set to drop disappears after its day and shows in History on that day as dropped.
+
 ### Changed
+
+- Unfinished tasks that roll over now wait at the top of Today, oldest first, until you drag them somewhere else.
+- History now lists repeating tasks under "Repeating" and counts them as "repeating" instead of "habits".
 
 - Today is now one list in the order you choose. Habits, one-off tasks and list tasks that are due sit together, and you can drag them into the order you'll do them. Your existing habits come first, then your tasks, each in the order they were in. Repeating tasks show a small repeat mark, and a list task that's due shows its list's name. A newly due list task starts at the top, most overdue first, until you drag it somewhere else, and moving it on Today doesn't move it in its list. New tasks land at the bottom, from the add box or the quick-add hotkey. One add box now covers everything: choose Once, Every day or Chosen days.
 - Drag to reorder works in your named lists and on subtasks too, and the order syncs to your other devices. To move a task without a mouse, focus its handle and use the up and down arrow keys.
