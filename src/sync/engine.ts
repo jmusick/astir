@@ -48,14 +48,14 @@ export function mergePulled(local: SyncRecord | undefined, server: SyncRecord, p
   }
   if (record.deleted && record.data == null && local?.data != null) {
     record = { ...record, data: local.data };
-    // Children and completions reference an item's data, so push the archive copy back.
-    if (record.entity === 'item' || record.entity === 'list') { record.archive = true; stillPending = true; }
+    // Children, completions and picks reference an item's, list's or pool item's data, so push the archive copy back.
+    if (record.entity === 'item' || record.entity === 'list' || record.entity === 'pool') { record.archive = true; stillPending = true; }
   }
   return { record, pending: stillPending };
 }
 
 type Outgoing = { record: SyncRecord; send: SyncRecord; finishes: boolean };
-const RANK = (r: SyncRecord) => r.entity === 'list' ? 0 : r.entity === 'item' ? ((r.data as { parentId?: unknown } | null)?.parentId ? 2 : 1) : 3;
+const RANK = (r: SyncRecord) => r.entity === 'list' ? 0 : r.entity === 'item' ? ((r.data as { parentId?: unknown } | null)?.parentId ? 2 : 1) : r.entity === 'pick' ? 4 : 3;
 /** Parents before children, within and across pushes. */
 export function parentsFirst<T = SyncRecord>(items: T[], recordOf: (item: T) => SyncRecord = (item) => item as SyncRecord): T[] {
   return [...items].sort((a, b) => RANK(recordOf(a)) - RANK(recordOf(b)));
@@ -227,7 +227,7 @@ export class SyncEngine {
       else if (record.archive) live.push({ record, send: { ...record, deleted: false }, finishes: true });
       else {
         tombstones.push({ record, send: record, finishes: true });
-        if (record.data && (record.entity === 'item' || record.entity === 'list')) archiveCopies.push({ record, send: { ...record, deleted: false }, finishes: false });
+        if (record.data && (record.entity === 'item' || record.entity === 'list' || record.entity === 'pool')) archiveCopies.push({ record, send: { ...record, deleted: false }, finishes: false });
       }
     }
     try {

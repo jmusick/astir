@@ -6,6 +6,7 @@ import type { Entry } from './records';
 import { recordKey } from './types';
 import type { CompletionData, ItemData, ScheduleData, SyncRecord } from './types';
 import { carryEnds, repeatsOn, sortedVersions } from './repeats';
+import { bucketRecords, dayPicks, perDayOn } from './buckets';
 
 // Looking back at past days (D7). Nothing is snapshotted at the reset: a day is recomputed from
 // the versioned schedules (D40) and the completion records (D39), so history never rewrites
@@ -19,8 +20,8 @@ export interface HistoryTask {
 
 export interface HistoryDay {
   day: string;
-  /** Repeating tasks scheduled that day, done or not. */
-  habits: Entry[];
+  /** Repeating tasks scheduled that day, done or not; a bucket task once per pick, named by `pick`. */
+  habits: (Entry & { pick?: string })[];
   habitsDone: number;
   /** Today-only and named-list tasks checked off that day. */
   tasks: HistoryTask[];
@@ -70,7 +71,8 @@ const isTopLevelTask = (data: ItemData) => (data.kind === 'today' || data.kind =
 /** What was done on a past day: habits done out of habits scheduled, and the tasks finished. */
 export function historyDay(records: ReadonlyMap<string, SyncRecord>, day: string, dayOf: DayOf): HistoryDay {
   const schedules = schedulesByItem(records);
-  const habits: Entry[] = [];
+  const habits: (Entry & { pick?: string })[] = [];
+  const buckets = bucketRecords(records);
   const tasks: { task: HistoryTask; at: number }[] = [];
   const dropped: HistoryTask[] = [];
   const checkedDays = completedDays(records);
@@ -81,7 +83,10 @@ export function historyDay(records: ReadonlyMap<string, SyncRecord>, day: string
     // repeating counts on the days it repeats on after its own (D51).
     if ((data.kind === 'habit' || data.kind === 'today') && !data.parentId && repeatsOn(data, sorted, day)
       && presentOn(item, day, dayOf, () => isCompleted(records, habitCompletionId(item.id, day)))) {
-      habits.push({ item, done: isCompleted(records, habitCompletionId(item.id, day)) });
+      // A bucket task shows each pick by name, done or not (D70).
+      const picks = perDayOn(sorted, day) > 0 ? dayPicks(buckets, item.id, sorted, day, true).picks : [];
+      if (picks.length) habits.push(...picks.map(({ pool, record }) => ({ item, done: !!record.data!.done, pick: pool.data!.name })));
+      else habits.push({ item, done: isCompleted(records, habitCompletionId(item.id, day)) });
     }
     if (data.kind === 'today' && !data.parentId && data.originalDay && droppedOn(data.originalDay, sorted, checkedAt(records, item.id), checkedDays.get(item.id)) === day
       && presentOn(item, day, dayOf, () => false)) {

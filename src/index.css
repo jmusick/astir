@@ -139,6 +139,16 @@ button.icon.danger, button.quiet.danger, button.danger { color: var(--on-danger)
 .subtasks h3, .repeat-settings h3 { margin: .5rem 0; font-size: 1rem; color: var(--muted); }
 .repeat-settings { display: grid; gap: .25rem; }
 .repeat-settings .hint, .repeat-settings p { margin: 0; }
+.bucket-settings { display: grid; gap: .25rem; }
+.bucket-settings .per-day { width: 5rem; min-width: 0; }
+.pool h3 { margin: .5rem 0; font-size: 1rem; color: var(--muted); }
+.pool ul { list-style: none; margin: 0 0 .5rem; padding: 0; }
+.pool-item { padding: .5rem 0; border-bottom: 1px solid var(--rule); display: grid; gap: .25rem; }
+.pool-head { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .75rem; }
+.pool-head .title { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.pool-item.paused .title { color: var(--muted); }
+.pick-notes { margin: 0; overflow-wrap: anywhere; }
+.bucket-actions button.link { min-height: 32px; }
 .repeat.missed legend { color: var(--muted); padding: 0; margin-right: .25rem; }
 .subtasks ul { margin-bottom: .5rem; }
 .add { gap: .75rem; margin-top: 1rem; }

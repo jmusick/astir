@@ -1,4 +1,5 @@
 import { addDays, weekdayOf } from './day';
+import { perDayOn } from './buckets';
 import type { ItemData, ScheduleData } from './types';
 
 // Repeats and the missed setting for daily tasks (D51, D52). Both live in schedule versions, so a
@@ -70,7 +71,8 @@ export function repeatCarry(data: ItemData, sorted: readonly ScheduleData[], che
   let last: string | null = null;
   for (const c of checked) if (c < day && (last === null || c > last)) last = c;
   for (let s = last !== null && last >= anchor ? addDays(last, 1) : anchor; s < day; s = addDays(s, 1)) {
-    if (!repeatsOn(data, sorted, s)) continue;
+    // A bucket day's picks carry on their own (#24), never the task as a whole.
+    if (!repeatsOn(data, sorted, s) || perDayOn(sorted, s) > 0) continue;
     const ends = carryEnds(data.kind, sorted, s);
     if (ends === null || ends > day) return s;
   }

@@ -1,5 +1,5 @@
 // The wire and storage shape of a sync record. docs/sync-api.md owns the contract.
-export type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day' | 'dismissal';
+export type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day' | 'dismissal' | 'pool' | 'pick';
 
 export interface SyncRecord<D = unknown> {
   entity: Entity;
@@ -35,7 +35,18 @@ export interface ItemData {
  * A daily task's repeat and missed setting from effectiveDay on (D40, D51, D52). No weekdays means it
  * doesn't repeat; a null or absent `missed` keeps the previous version's.
  */
-export interface ScheduleData { itemId: string; effectiveDay: string; weekdays: number[]; missed?: 'drop' | 'carry' | null }
+export interface ScheduleData {
+  itemId: string; effectiveDay: string; weekdays: number[]; missed?: 'drop' | 'carry' | null;
+  /** A bucket's picks a day (D56): 0 for no bucket, null or absent to keep the previous version's. */
+  perDay?: number | null;
+}
+/** A bucket's pool item (D58). It joins the rotation the day after createdDay, unless its bucket starts that day. */
+export interface PoolData { itemId: string; name: string; notes?: string; paused?: boolean; position?: number; createdDay: string }
+/**
+ * A pool item picked for a day (D61), keyed itemId:day:poolId. `slot` orders the day's picks; an
+ * extra comes from "Do another" (D57). `place` is where the owner dragged this row today (D66).
+ */
+export interface PickData { itemId: string; day: string; poolId: string; slot: number; extra?: boolean; done?: boolean; skipped?: boolean; place?: number | null }
 export interface CompletionData { itemId: string; day: string | null; completed: boolean }
 /** A reminder the user dismissed, so other devices skip it (D42). `reminder` is the time it was for. */
 export interface DismissalData { itemId: string; day: string | null; reminder: string }

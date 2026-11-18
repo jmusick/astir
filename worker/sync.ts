@@ -1,10 +1,10 @@
 import { currentSession, isAppRequest, signedOut } from './auth';
 import { isAllowedOrigin } from './headers';
 
-export const SYNC_LIMITS = { lists: 100, openItems: 10_000, subtasks: 100, daySettings: 1_000, title: 500, notes: 20_000, changes: 500, bytes: 1_048_576 } as const;
+export const SYNC_LIMITS = { pool: 100, perDay: 20, lists: 100, openItems: 10_000, subtasks: 100, daySettings: 1_000, title: 500, notes: 20_000, changes: 500, bytes: 1_048_576 } as const;
 const FUTURE_MS = 5 * 60_000;
-type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day' | 'dismissal';
-const ENTITIES: string[] = ['list', 'item', 'schedule', 'completion', 'day', 'dismissal'];
+type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day' | 'dismissal' | 'pool' | 'pick';
+const ENTITIES: string[] = ['list', 'item', 'schedule', 'completion', 'day', 'dismissal', 'pool', 'pick'];
 type Data = Record<string, string | number | boolean | null | number[]>;
 type Change = { entity: Entity; id: string; editedAt: number; deleted: boolean; data: Data | null };
 type Row = { entity: Entity; id: string; edited_at: number; deleted: number; data: string | null; revision: number };
@@ -50,7 +50,7 @@ function dataOf(entity: Entity, value: unknown): Data {
     return { title: text(d.title, 'Title', SYNC_LIMITS.title, true), position: position(d.position) };
   }
   if (entity === 'schedule') {
-    fields(d, ['itemId', 'effectiveDay', 'weekdays', 'missed']);
+    fields(d, ['itemId', 'effectiveDay', 'weekdays', 'missed', 'perDay']);
     // No weekdays means it doesn't repeat from this version on (D51).
     if (!Array.isArray(d.weekdays) || d.weekdays.length > 7
       || d.weekdays.some((v) => !Number.isInteger(v) || v < 0 || v > 6) || new Set(d.weekdays).size !== d.weekdays.length) {
@@ -58,7 +58,9 @@ function dataOf(entity: Entity, value: unknown): Data {
     }
     // The missed setting (D52). Null keeps the previous version's, so clients that predate it keep working (D72).
     if (d.missed != null && d.missed !== 'drop' && d.missed !== 'carry') throw new SyncError('missed must be drop or carry.');
-    return { itemId: id(d.itemId), effectiveDay: day(d.effectiveDay), weekdays: [...d.weekdays].sort(), missed: (d.missed as string | undefined) ?? null };
+    // A bucket's picks a day (D56): 0 turns it off, and null keeps the previous version's.
+    if (d.perDay != null && (!Number.isInteger(d.perDay) || (d.perDay as number) < 0 || (d.perDay as number) > SYNC_LIMITS.perDay)) throw new SyncError(`perDay must be a whole number from 0 to ${SYNC_LIMITS.perDay}.`);
+    return { itemId: id(d.itemId), effectiveDay: day(d.effectiveDay), weekdays: [...d.weekdays].sort(), missed: (d.missed as string | undefined) ?? null, perDay: (d.perDay as number | undefined) ?? null };
   }
   if (entity === 'day') {
     fields(d, ['effectiveDay', 'timeZone', 'startHour']);
@@ -69,6 +71,21 @@ function dataOf(entity: Entity, value: unknown): Data {
     fields(d, ['itemId', 'day', 'completed']);
     if (typeof d.completed !== 'boolean') throw new SyncError('completed must be true or false.');
     return { itemId: id(d.itemId), day: d.day == null ? null : day(d.day), completed: d.completed };
+  }
+  if (entity === 'pool') {
+    // A bucket's pool item (D58). It joins the rotation the day after createdDay, unless the bucket starts that day.
+    fields(d, ['itemId', 'name', 'notes', 'paused', 'position', 'createdDay']);
+    if (d.paused !== undefined && typeof d.paused !== 'boolean') throw new SyncError('paused must be true or false.');
+    return { itemId: id(d.itemId), name: text(d.name, 'Name', SYNC_LIMITS.title, true), notes: text(d.notes ?? '', 'Notes', SYNC_LIMITS.notes),
+      paused: d.paused === true, position: position(d.position), createdDay: day(d.createdDay) };
+  }
+  if (entity === 'pick') {
+    // A pool item picked for a day (D61): a slot of the day's picks, or an extra (D57).
+    fields(d, ['itemId', 'day', 'poolId', 'slot', 'extra', 'done', 'skipped', 'place']);
+    if (!Number.isInteger(d.slot) || (d.slot as number) < 0 || (d.slot as number) > SYNC_LIMITS.pool) throw new SyncError('slot must be a whole number from 0 to 100.');
+    for (const flag of ['extra', 'done', 'skipped'] as const) if (d[flag] !== undefined && typeof d[flag] !== 'boolean') throw new SyncError(`${flag} must be true or false.`);
+    return { itemId: id(d.itemId), day: day(d.day), poolId: id(d.poolId), slot: d.slot as number, extra: d.extra === true, done: d.done === true,
+      skipped: d.skipped === true, place: d.place == null ? null : position(d.place) };
   }
   if (entity === 'dismissal') {
     fields(d, ['itemId', 'day', 'reminder']);
@@ -127,6 +144,15 @@ function changeOf(value: unknown, now: number): Change {
       key = c.id;
     }
     if (c.id !== key) throw new SyncError('Use itemId:effectiveDay for schedules and itemId:day (or itemId:task) for completions and dismissals.');
+  } else if (entity === 'pick') {
+    // One record per pool item a day, so two devices picking different items never overwrite each other.
+    if (data) key = `${data.itemId}:${data.day}:${data.poolId}`;
+    else {
+      if (typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}:\d{4}-\d{2}-\d{2}:[a-zA-Z0-9_-]{1,128}$/.test(c.id)) throw new SyncError('Invalid semantic record ID.');
+      const [item, pickDay, pool] = c.id.split(':'); id(item); day(pickDay); id(pool);
+      key = c.id;
+    }
+    if (c.id !== key) throw new SyncError('Use itemId:day:poolId for picks.');
   } else if (entity === 'day') {
     // Day settings are versioned by the day they take effect (D34), one record per day.
     key = data ? data.effectiveDay as string : day(c.id);
@@ -171,7 +197,7 @@ export async function handleSync(request: Request, env: Env): Promise<Response> 
       const keys = changes.map((c) => `${c.entity}/${c.id}`);
       if (new Set(keys).size !== keys.length) throw new SyncError('Send each record only once per push.');
       // Parents before children; dependents may arrive in any order on the wire.
-      const rank = (c: Change) => c.entity === 'list' ? 0 : c.entity === 'item' ? (c.data?.parentId ? 2 : 1) : 3;
+      const rank = (c: Change) => c.entity === 'list' ? 0 : c.entity === 'item' ? (c.data?.parentId ? 2 : 1) : c.entity === 'pick' ? 4 : 3;
       changes.sort((a, b) => rank(a) - rank(b));
       // D1 batches are transactions, including quota/reference triggers and revision allocation.
       // json_each avoids hundreds of roundtrips, bind parameters or the per-invocation query cap.
@@ -205,7 +231,7 @@ export async function handleSync(request: Request, env: Env): Promise<Response> 
     const message = error instanceof Error ? error.message : '';
     // Only our fixed trigger messages may leave the server. Never expose SQL or task contents.
     const known = ['You have reached 100 lists.', 'You have reached 10000 open items.', 'You have reached 100 subtasks per task.',
-      'You have reached 1000 day-setting changes.', 'Invalid record reference.', 'Item identity cannot change.'];
+      'You have reached 1000 day-setting changes.', 'You have reached 100 items in a bucket.', 'Invalid record reference.', 'Item identity cannot change.'];
     const safe = known.find((value) => message.includes(value));
     if (safe) return json({ error: safe }, safe.startsWith('You have reached') ? 409 : 400);
     console.warn('[sync] request failed');

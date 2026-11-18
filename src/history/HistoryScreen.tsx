@@ -48,10 +48,10 @@ export default function HistoryScreen({ records, today, versions, requested }: P
       <section className="panel habits" aria-labelledby="history-habits-heading">
         <h2 id="history-habits-heading">Repeating</h2>
         {view.habits.length > 0 ? <ul>
-          {view.habits.map(({ item, done }) => <li key={item.id} className={`item habit past${done ? ' done' : ''}`}>
+          {view.habits.map(({ item, done, pick }) => <li key={pick ? `${item.id}:${pick}` : item.id} className={`item habit past${done ? ' done' : ''}`}>
             <div className="item-main">
               <span className="mark" aria-hidden="true" />
-              <span className="title">{item.data!.title}</span>
+              <span className="title">{pick ? `${item.data!.title}: ${pick}` : item.data!.title}</span>
               <span className="sr-only">{done ? ', done' : ', not done'}</span>
               {item.deleted && <span className="meta"><span className="chip">Removed</span></span>}
             </div>

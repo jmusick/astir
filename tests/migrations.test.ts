@@ -107,3 +107,33 @@ describe('0007_daily_checklists', () => {
     db.close();
   });
 });
+
+describe('0008_buckets', () => {
+  it('keeps existing records and revisions while adding reference-checked pools and picks', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec('PRAGMA foreign_keys = ON');
+    for (const file of ['0001_accounts.sql', '0002_sync.sql', '0003_day_settings.sql', '0004_dismissals.sql', '0005_device_tokens.sql',
+      '0006_repeating_tasks.sql', '0007_daily_checklists.sql']) db.exec(sql(file));
+    db.exec(`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', 1);
+      INSERT INTO sync_records (user_id, entity, id, edited_at, deleted, data) VALUES
+        ('u', 'item', 'h', 5, 0, '{"kind":"habit","title":"Post","createdDay":"2026-11-16"}'),
+        ('u', 'item', 's', 6, 0, '{"kind":"habit","title":"Write it","createdDay":"2026-11-16","parentId":"h"}');`);
+    const before = db.prepare('SELECT entity, id, edited_at, deleted, data, revision FROM sync_records ORDER BY revision').all();
+    const insert = (entity: string, id: string, data: unknown) => db.prepare("INSERT INTO sync_records (user_id, entity, id, edited_at, deleted, data) VALUES ('u', ?, ?, 1, 0, ?)")
+      .run(entity, id, JSON.stringify(data));
+    expect(() => insert('pool', 'p', { itemId: 'h', name: 'Iron Tide', createdDay: '2026-11-16' })).toThrow();
+
+    db.exec(sql('0008_buckets.sql'));
+    expect(db.prepare('SELECT entity, id, edited_at, deleted, data, revision FROM sync_records ORDER BY revision').all()).toEqual(before);
+    insert('pool', 'p', { itemId: 'h', name: 'Iron Tide', createdDay: '2026-11-16' });
+    insert('pick', 'h:2026-11-16:p', { itemId: 'h', day: '2026-11-16', poolId: 'p', slot: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM sync_picks').get()?.n).toBe(1);
+    expect(() => insert('pool', 'q', { itemId: 's', name: 'Subtask pool', createdDay: '2026-11-16' })).toThrow(/Invalid record reference/);
+    expect(() => insert('pick', 'h:2026-11-16:x', { itemId: 'h', day: '2026-11-16', poolId: 'x', slot: 0 })).toThrow(/Invalid record reference/);
+    // A habit's subtask carries its parent's creation day, and daily checklist steps aren't open items.
+    expect(() => insert('item', 't', { kind: 'habit', title: 'Late', createdDay: '2026-11-17', parentId: 'h' })).toThrow(/Invalid record reference/);
+    expect(db.prepare('SELECT id FROM sync_open_items').all().map((r) => r.id)).toEqual(['h']);
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE name LIKE '%_v7'").all()).toEqual([]);
+    db.close();
+  });
+});

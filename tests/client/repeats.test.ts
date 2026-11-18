@@ -71,7 +71,7 @@ describe('changing a task’s repeat', () => {
     apply(records, repeatChanged(item(records, 'call'), MONDAY, EVERY_DAY, 'carry'));
     expect(row(records, MONDAY, 'call')).toMatchObject({ completionDay: null, dayCount: 1 });
     expect(row(records, MONDAY, 'call')!.repeats).toBeUndefined();
-    expect(upcomingRepeat(records, item(records, 'call'), MONDAY)).toEqual({ weekdays: EVERY_DAY, missed: 'carry' });
+    expect(upcomingRepeat(records, item(records, 'call'), MONDAY)).toEqual({ weekdays: EVERY_DAY, missed: 'carry', perDay: 0 });
     apply(records, checkedOff(row(records, MONDAY, 'call')!, true));
     // Checked on Monday, so Tuesday starts fresh.
     const tuesday = todayView(records, TUESDAY, () => MONDAY).entries;
@@ -111,13 +111,13 @@ describe('changing a task’s repeat', () => {
   it('keeps the missed setting when a later version doesn’t say (an older client’s)', () => {
     const records = store(newHabit('walk', 'Walk', EVERY_DAY, MONDAY, 1, 'carry'));
     apply(records, [{ entity: 'schedule', id: `walk:${WEDNESDAY}`, editedAt: 0, deleted: false, data: { itemId: 'walk', effectiveDay: WEDNESDAY, weekdays: [1] } }]);
-    expect(upcomingRepeat(records, item(records, 'walk'), TUESDAY)).toEqual({ weekdays: [1], missed: 'carry' });
+    expect(upcomingRepeat(records, item(records, 'walk'), TUESDAY)).toEqual({ weekdays: [1], missed: 'carry', perDay: 0 });
   });
 
   it('defaults new repeating tasks to drop and new one-off tasks to roll over', () => {
     expect(newHabit('a', 'A', EVERY_DAY, MONDAY, 1)[1].data).toMatchObject({ missed: 'drop' });
     expect(newTodayTask('b', 'B', MONDAY, 1)).toHaveLength(1);
-    expect(upcomingRepeat(store(newTodayTask('b', 'B', MONDAY, 1)), item(store(newTodayTask('b', 'B', MONDAY, 1)), 'b'), MONDAY)).toEqual({ weekdays: [], missed: 'carry' });
+    expect(upcomingRepeat(store(newTodayTask('b', 'B', MONDAY, 1)), item(store(newTodayTask('b', 'B', MONDAY, 1)), 'b'), MONDAY)).toEqual({ weekdays: [], missed: 'carry', perDay: 0 });
   });
 });
 

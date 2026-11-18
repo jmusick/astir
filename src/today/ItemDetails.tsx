@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { checkedOff, cleanNotes, cleanTitle, describeDays, edited, EVERY_DAY, NOTES_MAX, removed, renamed, repeatChanged, repositioned, TITLE_MAX, upcomingRepeat } from '../sync/daily';
-import type { Missed } from '../sync/daily';
+import type { Missed, RepeatSetting } from '../sync/daily';
+import { livePool, PER_DAY_MAX } from '../sync/buckets';
+import { PoolEditor } from './Buckets';
 import { weekdayOf } from '../sync/day';
 import { MissedFields, RepeatFields } from './AddForms';
 import type { Repeat } from './AddForms';
@@ -26,15 +28,18 @@ interface Props {
   save: (records: SyncRecord[]) => void;
   /** All records, for a daily task's repeat and missed setting; Today passes them. */
   records?: ReadonlyMap<string, SyncRecord>;
+  /** On a bucket pick row: the picked item's name and notes (D58). */
+  pickNotes?: { name: string; notes: string };
 }
 
 /** The fields D26 gives each kind: notes and a reminder for all, a due date and subtasks for some. */
-export default function ItemDetails({ item, subtasks, subtaskDay = null, day, timeZone, save, records }: Props) {
+export default function ItemDetails({ item, subtasks, subtaskDay = null, day, timeZone, save, records, pickNotes }: Props) {
   const data = item.data!;
   const id = useId();
   const listTask = data.kind === 'task';
   const daily = !!records && (data.kind === 'habit' || data.kind === 'today') && !data.parentId;
   const upcoming = daily ? upcomingRepeat(records!, item, day) : null;
+  const pool = daily ? livePool(records!, item.id) : null;
   const permission = useNotificationPermission();
   const [notes, setNotes] = useState(data.notes ?? '');
   const [notesError, setNotesError] = useState('');
@@ -95,7 +100,9 @@ export default function ItemDetails({ item, subtasks, subtaskDay = null, day, ti
       : permission === 'denied' ? 'Notifications are blocked for Astir in this browser, so reminders can’t pop up. Allow them in the site settings.'
       : permission === 'unsupported' ? 'This browser can’t show notifications, so reminders can’t pop up here.'
       : 'Turn on notifications to have reminders pop up while Astir is open in a tab.'}</p>}
+    {pickNotes?.notes && <p className="pick-notes"><strong>{pickNotes.name}:</strong> {pickNotes.notes}</p>}
     {upcoming && <RepeatSettings key={JSON.stringify(upcoming)} item={item} upcoming={upcoming} day={day} save={save} />}
+    {pool && (upcoming!.perDay > 0 || pool.length > 0) && <PoolEditor item={item} pool={pool} day={day} save={save} />}
     {subtasks && <div className="subtasks" aria-labelledby={`${id}-subtasks`}>
       <h3 id={`${id}-subtasks`}>Subtasks</h3>
       {subtasks.length > 0 && <Sortable items={subtasks} keyOf={(sub) => sub.item.id} labelOf={(sub) => sub.item.data!.title}
@@ -135,29 +142,42 @@ function AddSubtaskForm({ parentTitle, onAdd }: { parentTitle: string; onAdd: (t
  * A daily task's repeat and missed setting (D51, D52). Edits wait for Save, then apply from the next
  * reset; today's list stays as it is. Keyed by the saved setting, so a synced change resets the draft.
  */
-function RepeatSettings({ item, upcoming, day, save }: { item: SyncRecord<ItemData>; upcoming: { weekdays: number[]; missed: Missed }; day: string; save: (records: SyncRecord[]) => void }) {
+function RepeatSettings({ item, upcoming, day, save }: { item: SyncRecord<ItemData>; upcoming: RepeatSetting; day: string; save: (records: SyncRecord[]) => void }) {
   const id = useId();
   const initial: Repeat = !upcoming.weekdays.length ? 'once' : upcoming.weekdays.length === 7 ? 'every-day' : 'chosen';
   const [repeat, setRepeat] = useState<Repeat>(initial);
   const [chosen, setChosen] = useState<number[]>(upcoming.weekdays.length ? upcoming.weekdays : [weekdayOf(day)]);
   const [missed, setMissed] = useState<Missed>(upcoming.missed);
+  const [bucket, setBucket] = useState(upcoming.perDay > 0);
+  const [perDay, setPerDay] = useState(Math.max(1, upcoming.perDay));
   const [error, setError] = useState('');
   const weekdays = repeat === 'once' ? [] : repeat === 'every-day' ? EVERY_DAY : [...chosen].sort((a, b) => a - b);
-  const changed = weekdays.join() !== upcoming.weekdays.join() || missed !== upcoming.missed;
+  const wantPerDay = bucket && weekdays.length ? perDay : 0;
+  const changed = weekdays.join() !== upcoming.weekdays.join() || missed !== upcoming.missed || wantPerDay !== upcoming.perDay;
+  const fromToday = item.data!.kind === 'habit' && item.data!.createdDay === day && weekdays.length > 0;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (repeat === 'chosen' && !chosen.length) { setError('Choose at least one day.'); return; }
     setError('');
-    save(repeatChanged(item, day, weekdays, missed));
+    save(repeatChanged(item, day, weekdays, missed, wantPerDay));
   }
   return <form className="repeat-settings" onSubmit={submit} aria-labelledby={`${id}-repeat`}>
     <h3 id={`${id}-repeat`}>Repeats</h3>
-    <RepeatFields name={`${id}-repeat-choice`} repeat={repeat} chosen={chosen} onRepeat={setRepeat} onChosen={setChosen} />
+    <RepeatFields name={`${id}-repeat-choice`} repeat={repeat} chosen={chosen} onRepeat={setRepeat} onChosen={setChosen} onceDisabled={bucket} />
     <MissedFields name={`${id}-missed`} missed={missed} onMissed={setMissed} />
+    {/* Buckets are for repeating tasks only (D63). */}
+    {repeat !== 'once' && <div className="bucket-settings">
+      <label className="checkbox"><input type="checkbox" checked={bucket} onChange={(e) => setBucket(e.target.checked)} /> Cycle through a bucket of items</label>
+      {bucket && <label className="choice">How many a day
+        <input type="number" min={1} max={PER_DAY_MAX} value={perDay} className="per-day"
+          onChange={(e) => setPerDay(Math.max(1, Math.min(PER_DAY_MAX, Math.round(Number(e.target.value) || 1))))} /></label>}
+      {bucket && <p className="hint">Each day picks the items that have gone longest without being done. Remove the bucket to make it a one-off.</p>}
+    </div>}
     <p className="hint">{upcoming.weekdays.length ? `Repeats ${upcoming.weekdays.length === 7 ? 'every day' : `on ${describeDays(upcoming.weekdays)}`}` : 'Doesn’t repeat'}
-      {upcoming.missed === 'drop' ? ', and drops off when missed.' : ', and rolls over when missed.'} Changes start at your next reset.</p>
+      {upcoming.missed === 'drop' ? ', and drops off when missed.' : ', and rolls over when missed.'}
+      {upcoming.perDay > 0 && ` It picks ${upcoming.perDay} from its bucket a day.`}{fromToday ? ' It’s new today, so changes start now.' : ' Changes start at your next reset.'}</p>
     {error && <p className="form-error" role="alert">{error}</p>}
-    {changed && <p><button type="submit" className="quiet">Save from the next reset</button></p>}
+    {changed && <p><button type="submit" className="quiet">{fromToday ? 'Save' : 'Save from the next reset'}</button></p>}
   </form>;
 }

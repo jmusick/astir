@@ -22,10 +22,13 @@ interface Props {
   details?: () => ReactNode;
   /** The drag handle when the row sits in a reorderable list (D49). */
   handle?: ReactNode;
+  /** A bucket pick's item, shown as "Task: Item" (D56). Renaming still renames the task. */
+  pickName?: string;
 }
 
-export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete, dayCount = 1, carriedFrom, meta, details, handle }: Props) {
+export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete, dayCount = 1, carriedFrom, meta, details, handle, pickName }: Props) {
   const title = item.data!.title;
+  const label = pickName ? `${title}: ${pickName}` : title;
   const id = useId();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
@@ -93,13 +96,13 @@ export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete
       <div className="item-content">{editing
         ? <input className="rename" aria-label={`Rename “${title}”`} value={draft} maxLength={TITLE_MAX} autoFocus
             onChange={(e) => setDraft(e.target.value)} onKeyDown={keys} onBlur={() => finish(true)} />
-        : <label className="title" htmlFor={`${id}-check`}>{title}</label>}
+        : <label className="title" htmlFor={`${id}-check`}>{label}</label>}
       {!editing && dayCount > 1 && <span className="carried" title={`Carried over from ${carriedFrom ?? item.data!.originalDay}`}>{carriedLabel(dayCount)}</span>}
       {!editing && meta}
       </div>
       {!editing && (details
         ? <button type="button" className="icon" aria-expanded={expanded} aria-controls={`${id}-details`}
-            aria-label={`Details for “${title}”`} title="Notes, dates and subtasks" onClick={() => setExpanded((x) => !x)}><span className={expanded ? 'details-arrow open' : 'details-arrow'}><Icon name="chevron" /></span></button>
+            aria-label={`Details for “${label}”`} title="Notes, dates and subtasks" onClick={() => setExpanded((x) => !x)}><span className={expanded ? 'details-arrow open' : 'details-arrow'}><Icon name="chevron" /></span></button>
         : <div className="actions">{editActions}</div>)}
     </div>
     {details && expanded && <div className="details" id={`${id}-details`}><div className="row-actions">{editActions}</div>{details()}</div>}

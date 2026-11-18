@@ -87,6 +87,29 @@ describe('sync model and conflicts', () => {
     expect((await pull()).changes.find((c) => c.id === 'step')?.data).toMatchObject({ parentId: 'habit', createdDay: DAY });
     expect((await push([change('item', 'deep', { kind: 'habit', title: 'Deeper', createdDay: DAY, parentId: 'step' })])).status).toBe(400);
   });
+  it('stores bucket pools, picks keyed by item, day and pool item, and the daily number', async () => {
+    const pool = (id: string, extra: Record<string, unknown> = {}) => change('pool', id, { itemId: 'habit', name: id, createdDay: DAY, ...extra });
+    const pick = (poolId: string, extra: Record<string, unknown> = {}) => change('pick', `habit:${DAY}:${poolId}`, { itemId: 'habit', day: DAY, poolId, slot: 0, ...extra });
+    // Picks may arrive before their pool items in a push; the server orders them.
+    expect((await push([pick('iron', { done: true }), pool('iron', { notes: 'Post the tour dates' }), habit(),
+      change('schedule', `habit:${DAY}`, { itemId: 'habit', effectiveDay: DAY, weekdays: [0, 1, 2, 3, 4, 5, 6], perDay: 2 })])).status).toBe(200);
+    const page = await pull();
+    expect(page.changes.find((c) => c.entity === 'pool')?.data).toMatchObject({ name: 'iron', notes: 'Post the tour dates', paused: false });
+    expect(page.changes.find((c) => c.entity === 'pick')?.data).toMatchObject({ poolId: 'iron', slot: 0, done: true, skipped: false, extra: false, place: null });
+    expect(page.changes.find((c) => c.entity === 'schedule')?.data).toMatchObject({ perDay: 2 });
+    for (const c of [pick('missing'), change('pick', `habit:${DAY}:other`, { itemId: 'habit', day: DAY, poolId: 'iron', slot: 0 }),
+      pick('iron', { slot: -1 }), pool('x', { itemId: 'nope' }), pool('y', { paused: 'yes' }),
+      change('schedule', `habit:2026-11-17`, { itemId: 'habit', effectiveDay: '2026-11-17', weekdays: [1], perDay: 21 })]) {
+      expect((await push([c])).status, JSON.stringify(c)).toBe(400);
+    }
+  });
+  it('limits a bucket to 100 items', async () => {
+    await push([habit()]);
+    const pools = Array.from({ length: 101 }, (_, i) => change('pool', `p${i}`, { itemId: 'habit', name: `Item ${i}`, createdDay: DAY }));
+    const response = await push(pools);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: 'You have reached 100 items in a bucket.' });
+  });
   it('uses client edit times, keeps equal-time first writers, and does not allocate revisions for retries', async () => {
     await push([list('work', NOW - 100)]);
     const page = await pull();

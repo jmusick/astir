@@ -10,13 +10,15 @@ const LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 export type Repeat = 'once' | 'every-day' | 'chosen';
 
 /** Once, every day or chosen weekdays (D51), shared by the add box and a task's details. */
-export function RepeatFields({ name, repeat, chosen, onRepeat, onChosen }: {
+export function RepeatFields({ name, repeat, chosen, onRepeat, onChosen, onceDisabled = false }: {
   name: string; repeat: Repeat; chosen: number[]; onRepeat: (repeat: Repeat) => void; onChosen: (days: number[]) => void;
+  /** A task with a bucket can't be made one-off until the bucket is removed (D63). */
+  onceDisabled?: boolean;
 }) {
   const toggle = (d: number) => onChosen(chosen.includes(d) ? chosen.filter((x) => x !== d) : [...chosen, d]);
   return <fieldset className="repeat">
     <legend className="sr-only">Repeats</legend>
-    <label className="choice"><input type="radio" name={name} checked={repeat === 'once'} onChange={() => onRepeat('once')} /> Once</label>
+    <label className="choice"><input type="radio" name={name} checked={repeat === 'once'} disabled={onceDisabled} onChange={() => onRepeat('once')} /> Once</label>
     <label className="choice"><input type="radio" name={name} checked={repeat === 'every-day'} onChange={() => onRepeat('every-day')} /> Every day</label>
     <label className="choice"><input type="radio" name={name} checked={repeat === 'chosen'} onChange={() => onRepeat('chosen')} /> Chosen days</label>
     {repeat === 'chosen' && <div className="weekdays" role="group" aria-label="Days of the week">

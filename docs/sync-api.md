@@ -30,7 +30,7 @@ The response is `{ "accepted": 1, "serverTime": 1794848400000 }`. `accepted` cou
 
 ### Record envelope and conflicts
 
-- `entity`: `list`, `item`, `schedule`, `completion`, `day` or `dismissal`.
+- `entity`: `list`, `item`, `schedule`, `completion`, `day`, `dismissal`, `pool` or `pick`.
 - List/item `id`: client-generated, 1–128 ASCII letters, digits, hyphens or underscores. UUIDs work. IDs are scoped to account and entity.
 - `editedAt`: nonnegative, safe integer epoch milliseconds, within JavaScript's date range. More than five minutes ahead of server time is clamped to server time. Past timestamps are accepted for long offline gaps.
 - `deleted`: required boolean. A delete may omit `data`; its supplied data is ignored. Existing archive data is retained.
@@ -44,10 +44,12 @@ The latest client edit timestamp wins per record. Equal timestamps keep the firs
 | --- | --- |
 | `list` | `title` (required), `position` (optional number, default 0) |
 | `item` | `kind`: `habit`, `today` or `task`; `title` (required); `notes` (default empty); `position` (default 0); nullable `listId`, `parentId`, `originalDay`, `createdDay`, `dueDay`, `reminder`, `todayPosition`, `carryPosition`, `carryDay` |
-| `schedule` | `itemId`, `effectiveDay`, `weekdays`: distinct integers 0 (Sunday) to 6 (Saturday), all seven meaning every day and none meaning it doesn't repeat; nullable `missed`: `drop` or `carry` |
+| `schedule` | `itemId`, `effectiveDay`, `weekdays`: distinct integers 0 (Sunday) to 6 (Saturday), all seven meaning every day and none meaning it doesn't repeat; nullable `missed`: `drop` or `carry`; nullable `perDay`: a bucket's picks a day, 0 to 20, 0 for none |
 | `completion` | `itemId`, nullable `day`, `completed` (required boolean) |
 | `day` | `effectiveDay`, `timeZone` (an IANA zone such as `America/New_York`), `startHour` (whole hour, 0–23) |
 | `dismissal` | `itemId`, nullable `day`, `reminder` (the `HH:mm` time or UTC instant that was dismissed) |
+| `pool` | `itemId`, `name` (required, title rules), `notes` (default empty), `paused` (default false), `position` (default 0), `createdDay` |
+| `pick` | `itemId`, `day`, `poolId`, `slot` (0–100), `extra`, `done`, `skipped` (each default false), nullable `place` |
 
 `position` is finite, with absolute value at most `Number.MAX_SAFE_INTEGER`. Titles must contain non-whitespace text. Text length limits use JavaScript string length (UTF-16 code units). Dates are valid `YYYY-MM-DD` calendar days from year 0001 to 9999.
 
@@ -61,6 +63,9 @@ The latest client edit timestamp wins per record. Equal timestamps keep the firs
 - A habit completion's ID is **`itemId:YYYY-MM-DD`**, with that day in `data.day`, on or after creation. A task/subtask completion's ID is **`itemId:task`**, with null/omitted `data.day`. A today-only task checks its own day (and any carry of it) with `itemId:task`, and each day it repeats on with `itemId:YYYY-MM-DD`, on or after its original day. These semantic IDs ensure two devices create one record for the same completion.
 - A **dismissal** records that the user dismissed a reminder, so devices that haven't shown it yet skip it (D42). Its ID and references follow completions: **`itemId:YYYY-MM-DD`** for a habit's day, on or after creation, and **`itemId:task`** with null `day` for a task. `reminder` is the item's reminder value when it was dismissed; clients show the reminder again only if the item's reminder has changed since. Dismissals don't count toward any quota. They need migration `0004_dismissals.sql`: apply it before deploying a client that sends them, or every push that includes one is rejected.
 - **Day settings** are the account's time zone and day-start hour (D6). Each version's ID is its **`effectiveDay`**; it governs from that day until a later version takes over. The client writes the first version as `0001-01-01` and later changes effective from the next account reset (D34), so a day is never split or counted twice.
+
+- **Buckets** (D56–D62) need migration `0008_buckets.sql`. A `pool` record is one of a top-level daily task's pool items, with a client ID; a task holds at most 100 live ones. A `pick` records an item picked for a day, with ID **`itemId:day:poolId`**, so two devices picking different items never overwrite each other; its `poolId` must be a pool item of the same task. `done` is its checkmark, `skipped` swaps it out for the day, `extra` marks a "Do another" row and `place` is where it was dragged that day. Picks don't count toward any quota. A schedule's `perDay` is null on versions that predate buckets and keeps the previous version's.
+- 0008 also requires a habit's subtask to carry its parent's `createdDay`, and stops counting habit subtasks (daily checklist steps) as open items.
 
 Deleting a list, item or schedule does not cascade through sync records. Parents retain their archived data so offline dependent records remain valid. Clients must preserve and reconcile children of archived parents; hiding a parent must not silently discard them. Account deletion, by contrast, cascades through all the account's records. Tombstones and completion history are retained without expiry.
 

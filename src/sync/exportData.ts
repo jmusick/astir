@@ -12,7 +12,8 @@ export const EXPORT_VERSION = 1;
 export interface ExportedRecord { id: string; editedAt: string; deleted?: true; [field: string]: unknown }
 export interface ExportedDay {
   day: string;
-  habits: { id: string; title: string; done: boolean }[];
+  /** A bucket task appears once per pick, named by `pick` (D70). */
+  habits: { id: string; title: string; pick?: string; done: boolean }[];
   tasks: { id: string; title: string; list?: string }[];
   /** One-off tasks dropped unfinished after this day (D70). */
   dropped?: { id: string; title: string }[];
@@ -30,6 +31,9 @@ export interface AstirExport {
   completions: ExportedRecord[];
   daySettings: ExportedRecord[];
   dismissals: ExportedRecord[];
+  /** Bucket pool items and the picks each day recorded (D56, D61). */
+  pools: ExportedRecord[];
+  picks: ExportedRecord[];
   history: ExportedDay[];
 }
 
@@ -53,7 +57,7 @@ export function exportData(records: ReadonlyMap<string, SyncRecord>, email: stri
     if (!view.habits.length && !view.tasks.length && !view.dropped.length) continue;
     history.push({
       day,
-      habits: view.habits.map(({ item, done }) => ({ id: item.id, title: item.data!.title, done })),
+      habits: view.habits.map(({ item, done, pick }) => ({ id: item.id, title: item.data!.title, ...(pick ? { pick } : {}), done })),
       tasks: view.tasks.map(({ item, listTitle }) => ({ id: item.id, title: item.data!.title, ...(listTitle ? { list: listTitle } : {}) })),
       ...(view.dropped.length ? { dropped: view.dropped.map(({ item }) => ({ id: item.id, title: item.data!.title })) } : {}),
     });
@@ -61,7 +65,7 @@ export function exportData(records: ReadonlyMap<string, SyncRecord>, email: stri
   return {
     format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: new Date(now).toISOString(), account: { email }, unsynced,
     lists: of('list'), items: of('item'), schedules: of('schedule'), completions: of('completion'),
-    daySettings: of('day'), dismissals: of('dismissal'), history,
+    daySettings: of('day'), dismissals: of('dismissal'), pools: of('pool'), picks: of('pick'), history,
   };
 }
 

@@ -4,7 +4,8 @@ import { blank, bottomPlace, checkedAt, CLOCK_SLACK_MS, habitCompletionId, isCom
 import type { Entry } from './records';
 import { carryEnds, missedOn, repeatCarry, repeatsOn, sortedVersions, weekdaysOn } from './repeats';
 import type { Missed } from './repeats';
-import type { CompletionData, ItemData, ScheduleData, SyncRecord } from './types';
+import { bucketRecords, dayPicks, PER_DAY_MAX, perDayOn } from './buckets';
+import type { CompletionData, ItemData, PickData, PoolData, ScheduleData, SyncRecord } from './types';
 
 // The daily list's model: what Today shows, and the full records each edit produces.
 // Everything here is pure, so it's shared by every client and tested without a browser.
@@ -56,11 +57,21 @@ export interface TodayEntry extends Entry {
    * its checks until the task is done (D55), or null for a one-off's own day (itemId:task records).
    */
   subtaskDay?: string | null;
+  /** A bucket pick row (D56): titled "Task: Item", checked on its pick record. */
+  pick?: { record: SyncRecord<PickData>; name: string; notes: string; extra: boolean };
+  /** Orders rows that share a place: a bucket task's picks in slot order (D66). */
+  sub?: number;
+  /** A bucket task whose pool has no active items shows as a plain row with a note (D62). */
+  bucketEmpty?: boolean;
+  /** On a bucket task's last row: the next item in line for "Do another" (D57). */
+  another?: SyncRecord<PoolData>;
 }
 export interface TodayView {
   day: string;
   /** One list in the owner's order (D47): rows waiting at the top first, then by place. */
   entries: TodayEntry[];
+  /** Picks decided on this view that aren't recorded yet; the screen saves them (D61). */
+  toRecord: SyncRecord[];
   done: number;
   total: number;
   /** 0–100, rounded. 0 when nothing is planned. */
@@ -101,7 +112,7 @@ function byTodayOrder(a: TodayEntry, b: TodayEntry): number {
     if (b.place !== null) return -1;
     return (b.overdue ?? 0) - (a.overdue ?? 0) || a.usual - b.usual || a.item.id.localeCompare(b.item.id);
   }
-  return a.place - b.place || a.item.id.localeCompare(b.item.id);
+  return a.place - b.place || a.item.id.localeCompare(b.item.id) || (a.sub ?? 0) - (b.sub ?? 0);
 }
 
 /** The schedule in effect on a day: the latest version effective on or before it (D40). */
@@ -142,6 +153,21 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
   const schedules = schedulesByItem(records);
   const subtasks = subtasksByParent(records);
   const checkedDays = completedDays(records);
+  const buckets = bucketRecords(records);
+  const toRecord: SyncRecord[] = [];
+  /** A scheduled day's rows: one per pick when the task has a bucket that day, else the task itself. */
+  const bucketRows = (base: TodayEntry, sorted: readonly ScheduleData[]): TodayEntry[] => {
+    if (perDayOn(sorted, day) === 0) return [base];
+    const { picks, next } = dayPicks(buckets, base.item.id, sorted, day);
+    if (!picks.length) return [{ ...base, bucketEmpty: true }];
+    const rows = picks.map(({ pool, record, fresh }, i): TodayEntry => {
+      if (fresh) toRecord.push(record);
+      return { ...base, done: !!record.data!.done, sub: i, place: record.data!.place ?? base.place,
+        pick: { record, name: pool.data!.name, notes: pool.data!.notes ?? '', extra: !!record.data!.extra } };
+    });
+    if (next && picks.every((p) => p.record.data!.done)) rows[rows.length - 1] = { ...rows[rows.length - 1], another: next };
+    return rows;
+  };
   let isNew = true;
   for (const record of records.values()) {
     if (record.entity === 'list' && !record.deleted && record.data) isNew = false;
@@ -160,8 +186,9 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
       const carry = repeatCarry(data, sorted, days, day);
       if (!scheduled && !carry) continue;
       const subtaskDay = carry ?? day;
-      entries.push({ ...placed(data, carry, day), item, source: 'habit', completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)),
-        subtasks: checklistOn(records, subtasks.get(item.id), subtaskDay), subtaskDay, ...repeats });
+      const base: TodayEntry = { ...placed(data, carry, day), item, source: 'habit', completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)),
+        subtasks: checklistOn(records, subtasks.get(item.id), subtaskDay), subtaskDay, ...repeats };
+      entries.push(...(scheduled && !carry ? bucketRows(base, sorted) : [base]));
       continue;
     }
     const original = data.originalDay;
@@ -183,7 +210,10 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
     const perDay = scheduled || !!repeatCarried;
     const subtaskDay = perDay && (carry ?? day) !== original ? carry ?? day : null;
     const shared = { ...placed(data, carry, day), item, source: 'today' as const, subtasks: checklistOn(records, subtasks.get(item.id), subtaskDay), subtaskDay, ...repeats };
-    if (perDay) entries.push({ ...shared, completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)) || (pending && doneHere) });
+    if (perDay) {
+      const base: TodayEntry = { ...shared, completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)) || (pending && doneHere) };
+      entries.push(...(scheduled && !carry ? bucketRows(base, sorted) : [base]));
+    }
     else entries.push({ ...shared, completionDay: null, done: doneHere });
   }
   for (const due of dueEntries(records, day, dayOf, subtasks)) {
@@ -193,7 +223,7 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
   entries.sort(byTodayOrder);
   const total = entries.length;
   const done = entries.filter((entry) => entry.done).length;
-  return { day, entries, done, total, percent: total ? Math.round((done / total) * 100) : 0, isNew };
+  return { day, entries, toRecord, done, total, percent: total ? Math.round((done / total) * 100) : 0, isNew };
 }
 
 /** A daily task's checklist for one occurrence: each subtask's own check that day, or its itemId:task check. */
@@ -240,21 +270,25 @@ export function newTodayTask(id: string, title: string, day: string, position: n
 }
 
 /** A daily task's repeat and missed setting as they'll be from the next reset. */
-export function upcomingRepeat(records: ReadonlyMap<string, SyncRecord>, item: SyncRecord<ItemData>, day: string): { weekdays: number[]; missed: Missed } {
+export interface RepeatSetting { weekdays: number[]; missed: Missed; /** Bucket picks a day; 0 for no bucket (D56). */ perDay: number }
+export function upcomingRepeat(records: ReadonlyMap<string, SyncRecord>, item: SyncRecord<ItemData>, day: string): RepeatSetting {
   const sorted = sortedVersions(schedulesByItem(records).get(item.id));
   const next = addDays(day, 1);
-  return { weekdays: weekdaysOn(sorted, next), missed: missedOn(item.data!.kind, sorted, next) };
+  return { weekdays: weekdaysOn(sorted, next), missed: missedOn(item.data!.kind, sorted, next), perDay: perDayOn(sorted, next) };
 }
 
 /**
- * Change a daily task's repeat (no weekdays: once) or missed setting from the next reset (D51, D52).
- * Today stays as it is, and past days keep what applied then (D40). A second change before the
- * reset replaces the first, since both are versions for the same day.
+ * Change a daily task's repeat (no weekdays: once), missed setting or bucket from the next reset
+ * (D51, D52, D73). Today stays as it is, and past days keep what applied then (D40). A repeating task
+ * created today is still new, so its changes count from today, as its first version did (D73). A
+ * second change before the reset replaces the first, since both are versions for the same day.
  */
-export function repeatChanged(item: SyncRecord<ItemData>, day: string, weekdays: number[], missed: Missed): SyncRecord[] {
-  const effectiveDay = addDays(day, 1);
+export function repeatChanged(item: SyncRecord<ItemData>, day: string, weekdays: number[], missed: Missed, perDay = 0): SyncRecord[] {
+  const effectiveDay = item.data!.kind === 'habit' && item.data!.createdDay === day && weekdays.length ? day : addDays(day, 1);
   const normalized = weekdays.length ? normalizeWeekdays(weekdays) : [];
-  return [record('schedule', scheduleId(item.id, effectiveDay), { itemId: item.id, effectiveDay, weekdays: normalized, missed } satisfies ScheduleData)];
+  // Only repeating tasks have buckets (D63).
+  const bucket = normalized.length ? Math.max(0, Math.min(PER_DAY_MAX, Math.round(perDay))) : 0;
+  return [record('schedule', scheduleId(item.id, effectiveDay), { itemId: item.id, effectiveDay, weekdays: normalized, missed, perDay: bucket } satisfies ScheduleData)];
 }
 
 /** Where a new habit or today-only task goes: below everything on Today (D50). */
@@ -272,14 +306,26 @@ export function todayBottom(records: ReadonlyMap<string, SyncRecord>, now: numbe
 
 /** Today after a drag (D49): only the moved rows change, each in the field that holds its Today place. */
 export function reorderedToday(entries: readonly TodayEntry[], from: number, to: number): SyncRecord[] {
-  return reorder(entries, (entry) => entry.place, from, to).map(({ item: entry, place }) => ({
+  return reorder(entries, (entry) => entry.place, from, to).flatMap(({ item: entry, place }): SyncRecord[] => entry.pick
+    // A pick row moves today, and sets its task's usual place so its picks start there tomorrow
+    // (D66). The task's other picks today stay put, so they're pinned where they are.
+    ? [{ ...entry.pick.record, data: { ...entry.pick.record.data!, place } }, { ...entry.item, data: { ...entry.item.data!, todayPosition: place } },
+      ...entries.filter((other) => other !== entry && other.item.id === entry.item.id && other.pick && other.pick.record.data!.place == null && other.place !== null)
+        .map((other) => ({ ...other.pick!.record, data: { ...other.pick!.record.data!, place: other.place } }))]
+    : [{
     ...entry.item,
     data: entry.carry
       // A carried or due task's place lasts for this carry only, and never moves a list task in its list (D54, D65).
       ? { ...entry.item.data!, carryPosition: place, carryDay: entry.carry }
       : { ...entry.item.data!, todayPosition: place },
-  }));
+  }]);
 }
+
+/**
+ * A Today row's stable key. A task's first row keeps the task's own key, so turning a bucket on, or
+ * a skip swapping the pick, doesn't remount the row and close its open details (D56).
+ */
+export const todayRowKey = (entry: Pick<TodayEntry, 'item' | 'pick' | 'sub'>) => entry.pick && entry.sub ? `${entry.item.id}:${entry.pick.record.data!.poolId}` : entry.item.id;
 
 /** Check or uncheck a Today row, on the record its day uses (D53). */
 export function checkedOff(entry: Pick<TodayEntry, 'item' | 'completionDay'>, completed: boolean): SyncRecord[] {

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { authApi } from '../authApi';
 import type { Account } from '../authApi';
 import { forgetAccount } from '../rememberedAccount';
-import { checkedOff, newHabit, newTodayTask, removed, renamed, reorderedToday, repeatLabel, setCompleted, todayBottom, todayView } from '../sync/daily';
+import { pickChecked } from '../sync/buckets';
+import { todayRowKey, checkedOff, newHabit, newTodayTask, removed, renamed, reorderedToday, repeatLabel, setCompleted, todayBottom, todayView } from '../sync/daily';
 import { dueLabel, listSummaries, newList } from '../sync/lists';
 import { addDays, changeDaySettings, dayAt, dayLabel, dayVersions, deviceTimeZone, firstDaySettings, hourLabel, settingsOn } from '../sync/day';
 import type { DayData, ItemData, SyncRecord } from '../sync/types';
@@ -19,6 +20,7 @@ import type { FocusRequest } from '../reminders/focusItem';
 import { requestNotifications, useNotificationPermission } from '../reminders/permission';
 import { useReminders } from '../reminders/useReminders';
 import { AddTodayForm } from './AddForms';
+import { BucketActions, RecordPicks } from './Buckets';
 import ItemDetails from './ItemDetails';
 import { ItemMeta } from './ItemMeta';
 import ItemRow from './ItemRow';
@@ -196,17 +198,21 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
             <h2>Start your first day</h2>
             <p>Add what you want to get done today: one-off tasks, and the ones that repeat, like a walk or ten minutes of reading. Drag them into the order you’ll do them, then check them off and watch the ring fill.</p>
           </section>}
+          <RecordPicks picks={view.toRecord} ready={everSynced} save={save} />
           <section className="panel day-list" aria-labelledby="day-list-heading">
             <h2 id="day-list-heading" className="sr-only">Today’s list</h2>
             {view.entries.length > 0
-              ? <Sortable className="today-list" items={view.entries} keyOf={(entry) => entry.item.id} labelOf={(entry) => entry.item.data!.title}
+              ? <Sortable className="today-list" items={view.entries} keyOf={todayRowKey} labelOf={(entry) => entry.item.data!.title}
                   onMove={(from, to) => save(reorderedToday(view.entries, from, to))}
-                  render={(entry, handle) => <ItemRow key={entry.item.id} item={entry.item} done={entry.done} handle={handle}
+                  render={(entry, handle) => <ItemRow key={todayRowKey(entry)} item={entry.item} done={entry.done} handle={handle} pickName={entry.pick?.name}
                     kind={entry.source === 'habit' ? 'habit' : 'task'} dayCount={entry.dayCount} carriedFrom={entry.carry}
-                    meta={<ItemMeta subtasks={entry.subtasks} repeats={entry.repeats && repeatLabel(entry.repeats)} from={entry.listTitle}
-                      due={entry.source === 'list' ? { label: dueLabel(entry.item.data!.dueDay!, day), late: (entry.overdue ?? 0) > 0 && !entry.done } : undefined} />}
-                    details={() => <ItemDetails item={entry.item} subtasks={entry.subtasks} subtaskDay={entry.subtaskDay} day={day} timeZone={zone} save={save} records={snapshot!.records} />}
-                    onToggle={(checked) => save(entry.source === 'list' ? setCompleted(entry.item, day, checked) : checkedOff(entry, checked))}
+                    meta={<>
+                      <ItemMeta subtasks={entry.subtasks} repeats={entry.repeats && repeatLabel(entry.repeats)} from={entry.listTitle}
+                        due={entry.source === 'list' ? { label: dueLabel(entry.item.data!.dueDay!, day), late: (entry.overdue ?? 0) > 0 && !entry.done } : undefined} />
+                      <BucketActions entry={entry} day={day} save={save} />
+                    </>}
+                    details={() => <ItemDetails item={entry.item} pickNotes={entry.pick && { name: entry.pick.name, notes: entry.pick.notes }} subtasks={entry.subtasks} subtaskDay={entry.subtaskDay} day={day} timeZone={zone} save={save} records={snapshot!.records} />}
+                    onToggle={(checked) => save(entry.pick ? pickChecked(entry.pick.record, checked) : entry.source === 'list' ? setCompleted(entry.item, day, checked) : checkedOff(entry, checked))}
                     onRename={(title) => save(renamed(entry.item, title))}
                     onDelete={() => save(removed(entry.item, snapshot!.records))} />} />
               : <p className="empty">{view.isNew ? 'Add a task below. It can be just for today, or repeat every day or on the days you choose.' : 'Nothing planned for today.'}</p>}
