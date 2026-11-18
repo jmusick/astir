@@ -79,7 +79,8 @@ function dataOf(entity: Entity, value: unknown): Data {
   const kind = d.kind;
   const listId = d.listId == null ? null : id(d.listId);
   const parentId = d.parentId == null ? null : id(d.parentId);
-  if ((kind === 'task') !== (listId !== null) || (kind === 'habit' && parentId !== null)) throw new SyncError('Only list tasks have listId; habits cannot have subtasks.');
+  // Every kind may have subtasks: a repeating task's clear each day (D55).
+  if ((kind === 'task') !== (listId !== null)) throw new SyncError('Only list tasks have listId.');
   if ((kind !== 'today' && d.originalDay != null) || (kind !== 'habit' && d.createdDay != null) || (kind !== 'task' && d.dueDay != null)) throw new SyncError('Dates do not match the item kind.');
   let reminder: string | null = null;
   if (d.reminder != null) {

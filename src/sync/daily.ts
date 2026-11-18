@@ -51,6 +51,11 @@ export interface TodayEntry extends Entry {
   overdue?: number;
   /** The day its checkmark is recorded for, or null for a one-off's own itemId:task record. */
   completionDay: string | null;
+  /**
+   * The occurrence its subtasks are checked for: the day a carry began, so a carried checklist keeps
+   * its checks until the task is done (D55), or null for a one-off's own day (itemId:task records).
+   */
+  subtaskDay?: string | null;
 }
 export interface TodayView {
   day: string;
@@ -154,7 +159,9 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
       // A missed repeat set to roll over waits until it's checked, shown once even on its next scheduled day (D53).
       const carry = repeatCarry(data, sorted, days, day);
       if (!scheduled && !carry) continue;
-      entries.push({ ...placed(data, carry, day), item, source: 'habit', completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)), ...repeats });
+      const subtaskDay = carry ?? day;
+      entries.push({ ...placed(data, carry, day), item, source: 'habit', completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)),
+        subtasks: checklistOn(records, subtasks.get(item.id), subtaskDay), subtaskDay, ...repeats });
       continue;
     }
     const original = data.originalDay;
@@ -171,10 +178,12 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
     const repeatCarried = repeatCarry(data, sorted, checked === null ? days : [...days, dayOf(checked)], day);
     if (!pending && !scheduled && !repeatCarried) continue;
     const carry = pending && day > original ? original : repeatCarried;
-    const shared = { ...placed(data, carry, day), item, source: 'today' as const, subtasks: subtasks.get(item.id) ?? [], ...repeats };
     // Every occurrence on one row shows once, and checking it settles them all (D53). Only its own day
-    // alone keeps the itemId:task record older clients read.
-    if (scheduled || repeatCarried) entries.push({ ...shared, completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)) || (pending && doneHere) });
+    // keeps the itemId:task records older clients read, for the task and its checklist.
+    const perDay = scheduled || !!repeatCarried;
+    const subtaskDay = perDay && (carry ?? day) !== original ? carry ?? day : null;
+    const shared = { ...placed(data, carry, day), item, source: 'today' as const, subtasks: checklistOn(records, subtasks.get(item.id), subtaskDay), subtaskDay, ...repeats };
+    if (perDay) entries.push({ ...shared, completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)) || (pending && doneHere) });
     else entries.push({ ...shared, completionDay: null, done: doneHere });
   }
   for (const due of dueEntries(records, day, dayOf, subtasks)) {
@@ -185,6 +194,12 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
   const total = entries.length;
   const done = entries.filter((entry) => entry.done).length;
   return { day, entries, done, total, percent: total ? Math.round((done / total) * 100) : 0, isNew };
+}
+
+/** A daily task's checklist for one occurrence: each subtask's own check that day, or its itemId:task check. */
+function checklistOn(records: ReadonlyMap<string, SyncRecord>, entries: readonly Entry[] | undefined, occurrence: string | null): Entry[] {
+  if (!entries) return [];
+  return occurrence === null ? [...entries] : entries.map((entry) => ({ ...entry, done: isCompleted(records, habitCompletionId(entry.item.id, occurrence)) }));
 }
 
 /** The days each item has a live, checked per-day completion for. */

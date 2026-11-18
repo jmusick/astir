@@ -205,7 +205,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
                     kind={entry.source === 'habit' ? 'habit' : 'task'} dayCount={entry.dayCount} carriedFrom={entry.carry}
                     meta={<ItemMeta subtasks={entry.subtasks} repeats={entry.repeats && repeatLabel(entry.repeats)} from={entry.listTitle}
                       due={entry.source === 'list' ? { label: dueLabel(entry.item.data!.dueDay!, day), late: (entry.overdue ?? 0) > 0 && !entry.done } : undefined} />}
-                    details={() => <ItemDetails item={entry.item} subtasks={entry.subtasks} day={day} timeZone={zone} save={save} records={snapshot!.records} />}
+                    details={() => <ItemDetails item={entry.item} subtasks={entry.subtasks} subtaskDay={entry.subtaskDay} day={day} timeZone={zone} save={save} records={snapshot!.records} />}
                     onToggle={(checked) => save(entry.source === 'list' ? setCompleted(entry.item, day, checked) : checkedOff(entry, checked))}
                     onRename={(title) => save(renamed(entry.item, title))}
                     onDelete={() => save(removed(entry.item, snapshot!.records))} />} />

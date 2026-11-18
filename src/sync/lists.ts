@@ -119,11 +119,14 @@ export function newListTask(id: string, listId: string, title: string, position:
   return [blank('item', id, { kind: 'task', title, listId, dueDay, position } satisfies ItemData)];
 }
 
-/** A subtask shares its parent's kind, list and original day, as the sync API requires. */
+/**
+ * A subtask shares its parent's kind, list, original day and creation day, as the sync API requires.
+ * A repeating task's subtasks clear each day (D55).
+ */
 export function newSubtask(id: string, parent: SyncRecord<ItemData>, title: string, position: number): SyncRecord[] {
-  const { kind, listId = null, originalDay = null } = parent.data!;
-  if (kind === 'habit' || parent.data!.parentId) throw new Error('Only top-level tasks have subtasks.');
-  return [blank('item', id, { kind, title, listId, originalDay, parentId: parent.id, position } satisfies ItemData)];
+  const { kind, listId = null, originalDay = null, createdDay = null } = parent.data!;
+  if (parent.data!.parentId) throw new Error('Only top-level tasks have subtasks.');
+  return [blank('item', id, { kind, title, listId, originalDay, ...(kind === 'habit' ? { createdDay } : {}), parentId: parent.id, position } satisfies ItemData)];
 }
 
 /** The list's tasks and their subtasks, which a list delete takes with it. */

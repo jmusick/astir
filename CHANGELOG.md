@@ -7,6 +7,7 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 ### Added
 
 - Any task on Today can repeat. When you add one, choose Once, Every day or Chosen days, and choose what happens if it's missed: drop it, or roll it over to the next day. Repeating tasks start out set to drop and one-off tasks to roll over, as before, but you can pick either. Open a task's details to change its repeat or missed setting later, including turning a one-off into a repeating task or back; the change starts at your next reset, and past days in History stay as they were.
+- Repeating tasks can have subtasks now, a checklist that starts fresh each day. If a task set to roll over isn't done, it keeps the steps you checked until you finish it. Checking every step still doesn't check the task itself.
 - A one-off task set to drop disappears after its day and shows in History on that day as dropped.
 
 ### Changed

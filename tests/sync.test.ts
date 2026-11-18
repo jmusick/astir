@@ -81,6 +81,12 @@ describe('sync model and conflicts', () => {
       expect((await push([today('child', { parentId: 'today' }), c])).status, JSON.stringify(c)).toBe(400);
     }
   });
+  it('accepts a repeating task’s subtasks and their checks for each day', async () => {
+    const sub = change('item', 'step', { kind: 'habit', title: 'Write it', createdDay: DAY, parentId: 'habit' });
+    expect((await push([habit(), schedule(), sub, completion('step', DAY)])).status).toBe(200);
+    expect((await pull()).changes.find((c) => c.id === 'step')?.data).toMatchObject({ parentId: 'habit', createdDay: DAY });
+    expect((await push([change('item', 'deep', { kind: 'habit', title: 'Deeper', createdDay: DAY, parentId: 'step' })])).status).toBe(400);
+  });
   it('uses client edit times, keeps equal-time first writers, and does not allocate revisions for retries', async () => {
     await push([list('work', NOW - 100)]);
     const page = await pull();

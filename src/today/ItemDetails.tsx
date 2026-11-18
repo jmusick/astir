@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { cleanNotes, cleanTitle, describeDays, edited, EVERY_DAY, NOTES_MAX, removed, renamed, repeatChanged, repositioned, setCompleted, TITLE_MAX, upcomingRepeat } from '../sync/daily';
+import { checkedOff, cleanNotes, cleanTitle, describeDays, edited, EVERY_DAY, NOTES_MAX, removed, renamed, repeatChanged, repositioned, TITLE_MAX, upcomingRepeat } from '../sync/daily';
 import type { Missed } from '../sync/daily';
 import { weekdayOf } from '../sync/day';
 import { MissedFields, RepeatFields } from './AddForms';
@@ -16,8 +16,10 @@ import Sortable from '../ui/Sortable';
 
 interface Props {
   item: SyncRecord<ItemData>;
-  /** Live subtasks; only top-level today-only and list tasks have them (D26). */
+  /** Live subtasks of a top-level task, with their checks for the occurrence shown (D26, D55). */
   subtasks?: Entry[];
+  /** The occurrence a daily task's checklist is checked for; null or absent for itemId:task checks. */
+  subtaskDay?: string | null;
   day: string;
   /** The account's time zone: a list task's reminder is a date and time there (D30, D42). */
   timeZone: string;
@@ -27,7 +29,7 @@ interface Props {
 }
 
 /** The fields D26 gives each kind: notes and a reminder for all, a due date and subtasks for some. */
-export default function ItemDetails({ item, subtasks, day, timeZone, save, records }: Props) {
+export default function ItemDetails({ item, subtasks, subtaskDay = null, day, timeZone, save, records }: Props) {
   const data = item.data!;
   const id = useId();
   const listTask = data.kind === 'task';
@@ -99,7 +101,7 @@ export default function ItemDetails({ item, subtasks, day, timeZone, save, recor
       {subtasks.length > 0 && <Sortable items={subtasks} keyOf={(sub) => sub.item.id} labelOf={(sub) => sub.item.data!.title}
         onMove={(from, to) => save(repositioned(subtasks, from, to))}
         render={(sub, handle) => <ItemRow key={sub.item.id} item={sub.item} done={sub.done} kind="subtask" handle={handle}
-          onToggle={(checked) => save(setCompleted(sub.item, day, checked))}
+          onToggle={(checked) => save(checkedOff({ item: sub.item, completionDay: subtaskDay }, checked))}
           onRename={(title) => save(renamed(sub.item, title))}
           onDelete={() => save(removed(sub.item))} />} />}
       <AddSubtaskForm parentTitle={data.title} onAdd={(title) => save(newSubtask(crypto.randomUUID(), item, title, Date.now()))} />

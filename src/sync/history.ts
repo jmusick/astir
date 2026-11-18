@@ -79,7 +79,7 @@ export function historyDay(records: ReadonlyMap<string, SyncRecord>, day: string
     const sorted = data.parentId ? [] : sortedVersions(schedules.get(item.id));
     // A repeating task counts from the day it was created, that day included (D40); a one-off made
     // repeating counts on the days it repeats on after its own (D51).
-    if ((data.kind === 'habit' || (data.kind === 'today' && !data.parentId)) && repeatsOn(data, sorted, day)
+    if ((data.kind === 'habit' || data.kind === 'today') && !data.parentId && repeatsOn(data, sorted, day)
       && presentOn(item, day, dayOf, () => isCompleted(records, habitCompletionId(item.id, day)))) {
       habits.push({ item, done: isCompleted(records, habitCompletionId(item.id, day)) });
     }
@@ -89,7 +89,7 @@ export function historyDay(records: ReadonlyMap<string, SyncRecord>, day: string
     }
     // A carried repeat checked on a day it wasn't scheduled shows as done that day (D53, D70).
     const anchor = data.kind === 'habit' ? data.createdDay : data.originalDay;
-    if ((data.kind === 'habit' || (data.kind === 'today' && !data.parentId)) && anchor && day >= anchor && !repeatsOn(data, sorted, day)) {
+    if ((data.kind === 'habit' || data.kind === 'today') && !data.parentId && anchor && day >= anchor && !repeatsOn(data, sorted, day)) {
       const completion = live<CompletionData>(records, recordKey('completion', habitCompletionId(item.id, day)));
       if (completion?.data?.completed && presentOn(item, day, dayOf, () => true)) tasks.push({ task: { item }, at: completion.editedAt });
     }

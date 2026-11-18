@@ -82,3 +82,28 @@ describe('0006_repeating_tasks', () => {
     db.close();
   });
 });
+
+describe('0007_daily_checklists', () => {
+  it('keeps existing records and lets repeating tasks have subtasks', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec('PRAGMA foreign_keys = ON');
+    for (const file of ['0001_accounts.sql', '0002_sync.sql', '0003_day_settings.sql', '0004_dismissals.sql', '0005_device_tokens.sql', '0006_repeating_tasks.sql']) db.exec(sql(file));
+    db.exec(`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u', 'u@example.test', 'x', 1);
+      INSERT INTO sync_records (user_id, entity, id, edited_at, deleted, data) VALUES
+        ('u', 'item', 'h', 5, 0, '{"kind":"habit","title":"Post","createdDay":"2026-11-16"}');`);
+    const before = db.prepare('SELECT entity, id, edited_at, deleted, data, revision FROM sync_records ORDER BY revision').all();
+    const sub = () => db.prepare("INSERT INTO sync_records (user_id, entity, id, edited_at, deleted, data) VALUES ('u', 'item', 's', 1, 0, ?)")
+      .run(JSON.stringify({ kind: 'habit', title: 'Write it', createdDay: '2026-11-16', parentId: 'h' }));
+    expect(sub).toThrow(/Invalid record reference/);
+
+    db.exec(sql('0007_daily_checklists.sql'));
+    expect(db.prepare('SELECT entity, id, edited_at, deleted, data, revision FROM sync_records ORDER BY revision').all()).toEqual(before);
+    sub();
+    db.prepare("INSERT INTO sync_records (user_id, entity, id, edited_at, deleted, data) VALUES ('u', 'completion', 's:2026-11-17', 1, 0, ?)")
+      .run(JSON.stringify({ itemId: 's', day: '2026-11-17', completed: true }));
+    // A subtask still can't have subtasks, or hang off a parent of another kind.
+    expect(() => db.prepare("INSERT INTO sync_records (user_id, entity, id, edited_at, deleted, data) VALUES ('u', 'item', 'x', 1, 0, ?)")
+      .run(JSON.stringify({ kind: 'habit', title: 'Deep', createdDay: '2026-11-16', parentId: 's' }))).toThrow(/Invalid record reference/);
+    db.close();
+  });
+});
