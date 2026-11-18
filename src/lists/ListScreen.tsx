@@ -116,7 +116,7 @@ function AddListTaskForm({ listTitle, first, onAdd }: { listTitle: string; first
     onAdd(result.title, dueDay || null);
     setTitle(''); setDueDay('');
   }
-  return <form className="add" onSubmit={submit} aria-label={`Add a task to ${listTitle}`}>
+  return <form className="add add-task" onSubmit={submit} aria-label={`Add a task to ${listTitle}`}>
     <label htmlFor={id}>New task in {listTitle}</label>
     <div className="add-row">
       <input id={id} placeholder={first ? 'Your first task here' : 'Task name'} value={title} maxLength={TITLE_MAX}

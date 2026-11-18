@@ -89,7 +89,8 @@ export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete
       : <button type="button" className="icon" aria-label={`Delete “${title}”`} title="Delete" onClick={() => setConfirming(true)}><Icon name="close" /></button>}
   </>;
 
-  return <li ref={row} className={`item ${kind}${done ? ' done' : ''}${flash ? ' focused' : ''}`}>
+  const opened = !!details && expanded;
+  return <li ref={row} className={`item ${kind}${done ? ' done' : ''}${flash ? ' focused' : ''}${opened ? ' open' : ''}`}>
     <div className="item-main">
       {handle}
       <input type="checkbox" className="check" id={`${id}-check`} checked={done} onChange={(e) => onToggle(e.target.checked)} />
@@ -100,11 +101,13 @@ export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete
       {!editing && dayCount > 1 && <span className="carried" title={`Carried over from ${carriedFrom ?? item.data!.originalDay}`}>{carriedLabel(dayCount)}</span>}
       {!editing && meta}
       </div>
+      {/* An open task keeps its rename and delete on its own row, next to its title. */}
+      {!editing && opened && <div className="actions">{editActions}</div>}
       {!editing && (details
         ? <button type="button" className="icon" aria-expanded={expanded} aria-controls={`${id}-details`}
             aria-label={`Details for “${label}”`} title="Notes, dates and subtasks" onClick={() => setExpanded((x) => !x)}><span className={expanded ? 'details-arrow open' : 'details-arrow'}><Icon name="chevron" /></span></button>
         : <div className="actions">{editActions}</div>)}
     </div>
-    {details && expanded && <div className="details" id={`${id}-details`}><div className="row-actions">{editActions}</div>{details()}</div>}
+    {opened && <div className="details" id={`${id}-details`}>{details()}</div>}
   </li>;
 }

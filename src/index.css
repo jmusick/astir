@@ -122,14 +122,17 @@ input.check:checked::after { opacity: 1; }
 .drag-handle { flex: 0 0 auto; justify-content: center; cursor: grab; touch-action: none; }
 .item.dragging { position: relative; z-index: 1; background: var(--surface); outline: 2px solid var(--accent); cursor: grabbing; }
 .carried { display: inline-block; color: var(--danger); font-size: 1rem; font-weight: 600; margin-bottom: .25rem; }
-.actions, .row-actions { display: flex; align-items: center; gap: .5rem; }
-.row-actions { margin-bottom: .75rem; justify-content: flex-end; }
+.actions { display: flex; align-items: center; gap: .5rem; }
 button.icon { display: inline-flex; min-width: 44px; min-height: 44px; background: transparent; color: var(--muted); padding: .5rem; font-weight: 600; }
 button.icon svg { width: 18px; height: 18px; }
 .details-arrow { display: flex; }
 .details-arrow.open { transform: rotate(90deg); }
 button.icon.danger, button.quiet.danger, button.danger { color: var(--on-danger); background: var(--danger); border-color: var(--danger); }
-.details { margin: .5rem 0 .5rem 44px; }
+/* An open task is a card, so everything inside it reads as editing that task. */
+.item.open { margin: .5rem -.75rem; padding: 0 .75rem .75rem; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 4px; }
+.item.open:last-child { border-bottom: 1px solid var(--line); }
+.item.open > .item-main { border-bottom: 1px solid var(--rule); }
+.details { margin: .75rem 0 0 44px; }
 .detail-fields { display: grid; gap: .75rem; }
 .field { gap: .35rem; color: var(--muted); }
 .field input, .field textarea { color: var(--text); background: var(--surface); }
@@ -152,6 +155,9 @@ button.icon.danger, button.quiet.danger, button.danger { color: var(--on-danger)
 .repeat.missed legend { color: var(--muted); padding: 0; margin-right: .25rem; }
 .subtasks ul { margin-bottom: .5rem; }
 .add { gap: .75rem; margin-top: 1rem; }
+/* The panel's own add box sits apart from the list above it. */
+.add.add-task { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 2px solid var(--text); }
+.add.add-task > label { font-size: 1.125rem; font-weight: 800; }
 .add-row { display: flex; gap: .5rem; min-width: 0; }
 .add-row input { flex: 1; min-width: 0; }
 .add-row button { padding: .5rem .875rem; }
@@ -284,6 +290,11 @@ kbd { font: inherit; font-weight: 700; padding: .05rem .4rem; border: 1px solid 
   .welcome { padding: 1rem; }
   .panel { padding: 1.25rem 1rem; }
   .item-main { min-height: 56px; }
+  .item.open { margin-inline: -.5rem; padding-inline: .5rem; }
+  /* Rename and delete drop under the title so it keeps its width. */
+  .item.open > .item-main { flex-wrap: wrap; }
+  .item.open > .item-main > .actions { order: 1; flex-basis: 100%; justify-content: flex-end; }
+  .details { margin-left: 0; }
   .list-screen, .history-screen, .settings-screen { margin-top: 1.75rem; }
   .list-head h1, .history-head h1 { font-size: 3rem; }
   .list-actions { margin-left: 0; }

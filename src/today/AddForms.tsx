@@ -66,7 +66,7 @@ export function AddTodayForm({ day, first, onAdd }: { day: string; first: boolea
     if (weekdays && !weekdays.includes(weekdayOf(day))) setMessage(`Added. It isn’t scheduled today, so you’ll see it on ${describeDays(weekdays)}.`);
   }
 
-  return <form className="add" onSubmit={submit} aria-label="Add a task for today">
+  return <form className="add add-task" onSubmit={submit} aria-label="Add a task for today">
     <label htmlFor="today-task-title">New task</label>
     <div className="add-row">
       <input id="today-task-title" placeholder={first ? 'Your first task, like “Read 10 pages”' : 'Add a task'} value={title} maxLength={TITLE_MAX}
