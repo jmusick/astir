@@ -202,7 +202,7 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
               ? <Sortable className="today-list" items={view.entries} keyOf={(entry) => entry.item.id} labelOf={(entry) => entry.item.data!.title}
                   onMove={(from, to) => save(reorderedToday(view.entries, from, to))}
                   render={(entry, handle) => <ItemRow key={entry.item.id} item={entry.item} done={entry.done} handle={handle}
-                    kind={entry.source === 'habit' ? 'habit' : 'task'} dayCount={entry.dayCount}
+                    kind={entry.source === 'habit' ? 'habit' : 'task'} dayCount={entry.dayCount} carriedFrom={entry.carry}
                     meta={<ItemMeta subtasks={entry.subtasks} repeats={entry.repeats && repeatLabel(entry.repeats)} from={entry.listTitle}
                       due={entry.source === 'list' ? { label: dueLabel(entry.item.data!.dueDay!, day), late: (entry.overdue ?? 0) > 0 && !entry.done } : undefined} />}
                     details={() => <ItemDetails item={entry.item} subtasks={entry.subtasks} day={day} timeZone={zone} save={save} records={snapshot!.records} />}

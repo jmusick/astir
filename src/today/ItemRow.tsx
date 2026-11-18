@@ -12,8 +12,10 @@ interface Props {
   onToggle: (checked: boolean) => void;
   onRename: (title: string) => void;
   onDelete: () => void;
-  /** A today-only task's day count; 2 or more shows the carried tag (D22). */
+  /** A carried task's day count; 2 or more shows the carried tag (D22, D53). */
   dayCount?: number;
+  /** The day its carry began, for the carried tag's tooltip. */
+  carriedFrom?: string;
   /** Small tags after the title, such as a due date or subtask progress. */
   meta?: ReactNode;
   /** Notes, dates and subtasks, shown below the row when opened. */
@@ -22,7 +24,7 @@ interface Props {
   handle?: ReactNode;
 }
 
-export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete, dayCount = 1, meta, details, handle }: Props) {
+export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete, dayCount = 1, carriedFrom, meta, details, handle }: Props) {
   const title = item.data!.title;
   const id = useId();
   const [editing, setEditing] = useState(false);
@@ -92,7 +94,7 @@ export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete
         ? <input className="rename" aria-label={`Rename “${title}”`} value={draft} maxLength={TITLE_MAX} autoFocus
             onChange={(e) => setDraft(e.target.value)} onKeyDown={keys} onBlur={() => finish(true)} />
         : <label className="title" htmlFor={`${id}-check`}>{title}</label>}
-      {!editing && dayCount > 1 && <span className="carried" title={`Carried over from ${item.data!.originalDay}`}>{carriedLabel(dayCount)}</span>}
+      {!editing && dayCount > 1 && <span className="carried" title={`Carried over from ${carriedFrom ?? item.data!.originalDay}`}>{carriedLabel(dayCount)}</span>}
       {!editing && meta}
       </div>
       {!editing && (details

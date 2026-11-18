@@ -1,10 +1,10 @@
 import { completedDays, schedulesByItem } from './daily';
 import { addDays } from './day';
 import type { ListData } from './lists';
-import { byPosition, checkedAt, CLOCK_SLACK_MS, habitCompletionId, isCompleted } from './records';
+import { byPosition, checkedAt, CLOCK_SLACK_MS, habitCompletionId, isCompleted, live } from './records';
 import type { Entry } from './records';
 import { recordKey } from './types';
-import type { ItemData, ScheduleData, SyncRecord } from './types';
+import type { CompletionData, ItemData, ScheduleData, SyncRecord } from './types';
 import { carryEnds, repeatsOn, sortedVersions } from './repeats';
 
 // Looking back at past days (D7). Nothing is snapshotted at the reset: a day is recomputed from
@@ -86,6 +86,12 @@ export function historyDay(records: ReadonlyMap<string, SyncRecord>, day: string
     if (data.kind === 'today' && !data.parentId && data.originalDay && droppedOn(data.originalDay, sorted, checkedAt(records, item.id), checkedDays.get(item.id)) === day
       && presentOn(item, day, dayOf, () => false)) {
       dropped.push({ item });
+    }
+    // A carried repeat checked on a day it wasn't scheduled shows as done that day (D53, D70).
+    const anchor = data.kind === 'habit' ? data.createdDay : data.originalDay;
+    if ((data.kind === 'habit' || (data.kind === 'today' && !data.parentId)) && anchor && day >= anchor && !repeatsOn(data, sorted, day)) {
+      const completion = live<CompletionData>(records, recordKey('completion', habitCompletionId(item.id, day)));
+      if (completion?.data?.completed && presentOn(item, day, dayOf, () => true)) tasks.push({ task: { item }, at: completion.editedAt });
     }
     if (data.kind === 'habit') continue;
     if (isTopLevelTask(data) && finishedOnDay(records, item, day, dayOf) && presentOn(item, day, dayOf, () => false)) {

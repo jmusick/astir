@@ -11,7 +11,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ### Changed
 
-- Unfinished tasks that roll over now wait at the top of Today, oldest first, until you drag them somewhere else.
+- Unfinished tasks that roll over now wait at the top of Today, oldest first, until you drag them somewhere else. A task you drag stays where you put it until it's done; if it rolls over again later, it starts at the top again.
+- A repeating task set to roll over now waits until it's done, tagged with how many days since it was missed, and shows once even when its next scheduled day comes around. Checking it off counts for the day you check it; the days it was missed stay missed in History, and its reminder doesn't go off again while it's waiting.
 - History now lists repeating tasks under "Repeating" and counts them as "repeating" instead of "habits".
 
 - Today is now one list in the order you choose. Habits, one-off tasks and list tasks that are due sit together, and you can drag them into the order you'll do them. Your existing habits come first, then your tasks, each in the order they were in. Repeating tasks show a small repeat mark, and a list task that's due shows its list's name. A newly due list task starts at the top, most overdue first, until you drag it somewhere else, and moving it on Today doesn't move it in its list. New tasks land at the bottom, from the add box or the quick-add hotkey. One add box now covers everything: choose Once, Every day or Chosen days.

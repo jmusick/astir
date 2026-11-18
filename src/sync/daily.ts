@@ -2,7 +2,7 @@ import { addDays, daysBetween } from './day';
 import { dueEntries } from './lists';
 import { blank, bottomPlace, checkedAt, CLOCK_SLACK_MS, habitCompletionId, isCompleted, reorder, scheduleId, subtasksByParent, taskCompletionId, tombstone } from './records';
 import type { Entry } from './records';
-import { carryEnds, missedOn, repeatsOn, sortedVersions, weekdaysOn } from './repeats';
+import { carryEnds, missedOn, repeatCarry, repeatsOn, sortedVersions, weekdaysOn } from './repeats';
 import type { Missed } from './repeats';
 import type { CompletionData, ItemData, ScheduleData, SyncRecord } from './types';
 
@@ -82,6 +82,13 @@ export function todayPlace(data: ItemData): number {
  */
 const carryPlace = (data: ItemData, carry: string) => data.carryPosition != null && data.carryDay === carry ? data.carryPosition : null;
 
+/** A daily row's place and carry tag: at the top while carried until dragged (D54), else its usual place. */
+function placed(data: ItemData, carry: string | null, day: string) {
+  const usual = todayPlace(data);
+  if (!carry) return { place: usual, usual, dayCount: 1 };
+  return { place: carryPlace(data, carry), usual, carry, overdue: daysBetween(carry, day), dayCount: daysBetween(carry, day) + 1 };
+}
+
 /** Waiting rows first, most overdue first and then in their list's order; then everything else by place. */
 function byTodayOrder(a: TodayEntry, b: TodayEntry): number {
   if (a.place === null || b.place === null) {
@@ -142,29 +149,33 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
     const weekdays = weekdaysOn(sorted, day);
     const repeats = weekdays.length ? { repeats: weekdays } : {};
     const scheduled = repeatsOn(data, sorted, day);
+    const days = checkedDays.get(item.id) ?? [];
     if (data.kind === 'habit') {
-      if (scheduled) entries.push({ item, source: 'habit', place: todayPlace(data), usual: todayPlace(data), done: isCompleted(records, habitCompletionId(item.id, day)), completionDay: day, ...repeats });
+      // A missed repeat set to roll over waits until it's checked, shown once even on its next scheduled day (D53).
+      const carry = repeatCarry(data, sorted, days, day);
+      if (!scheduled && !carry) continue;
+      entries.push({ ...placed(data, carry, day), item, source: 'habit', completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)), ...repeats });
       continue;
     }
     const original = data.originalDay;
     if (!original || original > day) continue;
     // The one-off's own occurrence: on its day, then carried until it's checked unless it's set to drop (D5, D52).
     const checked = checkedAt(records, item.id);
-    const settledBefore = (checked !== null && original < day && dayOf(checked) < day)
-      || (checkedDays.get(item.id) ?? []).some((d) => d >= original && d < day);
+    const settledBefore = (checked !== null && original < day && dayOf(checked) < day) || days.some((d) => d >= original && d < day);
     const ends = carryEnds(data.kind, sorted, original);
     const pending = day === original || (!settledBefore && (ends === null || ends > day));
     // Edit stamps may run a few minutes ahead (D32 clamps at five), so a check just before the
     // reset still counts for the day it was made.
     const doneHere = checked !== null && !settledBefore && dayOf(checked - CLOCK_SLACK_MS) <= day;
-    if (!pending && !scheduled) continue;
-    const carry = pending && day > original ? original : undefined;
-    const carried = carry ? { carry, overdue: daysBetween(carry, day), dayCount: daysBetween(carry, day) + 1 } : { dayCount: 1 };
-    const shared = { item, source: 'today' as const, usual: todayPlace(data), subtasks: subtasks.get(item.id) ?? [], ...repeats, ...carried };
-    const place = carry ? carryPlace(data, carry) : todayPlace(data);
-    // A repeat on a day it's still carried shows once; checking it settles both (D53).
-    if (scheduled) entries.push({ ...shared, place, completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)) || (pending && doneHere) });
-    else entries.push({ ...shared, place, completionDay: null, done: doneHere });
+    // Its repeats carry like any repeating task's; its own check settles them too.
+    const repeatCarried = repeatCarry(data, sorted, checked === null ? days : [...days, dayOf(checked)], day);
+    if (!pending && !scheduled && !repeatCarried) continue;
+    const carry = pending && day > original ? original : repeatCarried;
+    const shared = { ...placed(data, carry, day), item, source: 'today' as const, subtasks: subtasks.get(item.id) ?? [], ...repeats };
+    // Every occurrence on one row shows once, and checking it settles them all (D53). Only its own day
+    // alone keeps the itemId:task record older clients read.
+    if (scheduled || repeatCarried) entries.push({ ...shared, completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)) || (pending && doneHere) });
+    else entries.push({ ...shared, completionDay: null, done: doneHere });
   }
   for (const due of dueEntries(records, day, dayOf, subtasks)) {
     const carry = due.item.data!.dueDay!;

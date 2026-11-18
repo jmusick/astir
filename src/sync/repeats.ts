@@ -52,3 +52,27 @@ export function carryEnds(kind: ItemData['kind'], sorted: readonly ScheduleData[
   }
   return null;
 }
+
+/**
+ * The day of the earliest repeat still carried into `day` (D53): a scheduled day after the last
+ * check, missed, whose missed setting rolls it over through `day`. Null when nothing is carried.
+ * `checked` holds the days it was checked on; one check settles every occurrence up to it, so a
+ * repeat still waiting on its next scheduled day shows once.
+ */
+export function repeatCarry(data: ItemData, sorted: readonly ScheduleData[], checked: readonly string[], day: string): string | null {
+  // Nothing rolls over unless some version says so; skip the walk for tasks that drop.
+  // Nothing to carry unless it repeats and some version rolls over; skip the walk otherwise, since
+  // Today checks every one-off ever made.
+  if (!sorted.some((v) => v.weekdays.length)) return null;
+  if (defaultMissed(data.kind) === 'drop' && !sorted.some((v) => v.missed === 'carry')) return null;
+  const anchor = data.kind === 'habit' ? data.createdDay : data.originalDay;
+  if (!anchor) return null;
+  let last: string | null = null;
+  for (const c of checked) if (c < day && (last === null || c > last)) last = c;
+  for (let s = last !== null && last >= anchor ? addDays(last, 1) : anchor; s < day; s = addDays(s, 1)) {
+    if (!repeatsOn(data, sorted, s)) continue;
+    const ends = carryEnds(data.kind, sorted, s);
+    if (ends === null || ends > day) return s;
+  }
+  return null;
+}

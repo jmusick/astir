@@ -1,6 +1,6 @@
 import { addDays, dayAt, settingsOn, zonedInstant } from './day';
-import { schedulesByItem } from './daily';
-import { repeatsOn, sortedVersions } from './repeats';
+import { completedDays, schedulesByItem } from './daily';
+import { repeatCarry, repeatsOn, sortedVersions } from './repeats';
 import { blank, checkedAt, habitCompletionId, isCompleted, live, taskCompletionId } from './records';
 import { recordKey } from './types';
 import type { DayData, DismissalData, ItemData, SyncRecord } from './types';
@@ -42,6 +42,7 @@ export function remindersDue(records: ReadonlyMap<string, SyncRecord>, versions:
   if (to <= from) return [];
   const due: DueReminder[] = [];
   const schedules = schedulesByItem(records);
+  const checkedDays = completedDays(records);
   // A habit's reminder may fall on the account day before `from` (a time before the day-start hour).
   const firstDay = addDays(dayAt(versions, from), -1);
   const lastDay = dayAt(versions, to);
@@ -60,6 +61,8 @@ export function remindersDue(records: ReadonlyMap<string, SyncRecord>, versions:
       for (let day = firstDay, n = 0; day <= lastDay && n < 3; day = addDays(day, 1), n++) {
         if (!repeatsOn(data, sorted, day)) continue;
         if (isCompleted(records, habitCompletionId(item.id, day))) continue;
+        // A repeat merged into a carry doesn't remind again; it already did on the day it was missed (D69).
+        if (repeatCarry(data, sorted, checkedDays.get(item.id) ?? [], day)) continue;
         add(habitCompletionId(item.id, day), day, reminderInstant(versions, day, data.reminder));
       }
       if (data.kind === 'habit') continue;
