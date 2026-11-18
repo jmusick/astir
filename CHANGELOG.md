@@ -4,6 +4,10 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- A footer at the bottom of every screen shows which version of Astir you're running.
+
 ## [0.13.0] - 2026-11-17
 
 ### Added

@@ -57,4 +57,6 @@ function serviceWorker(): Plugin {
 // D1, so `npm run dev` serves the React UI and the API from one origin.
 export default defineConfig({
   plugins: [react(), cloudflare(), serviceWorker()],
+  // The footer's version; /release bumps package.json, so it never needs editing by hand.
+  define: { __APP_VERSION__: JSON.stringify((JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version) },
 });

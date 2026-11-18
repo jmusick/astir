@@ -233,6 +233,10 @@ main.quick-add { padding: .75rem .9rem; display: grid; gap: .35rem; }
 main.quick-add input { border: 2px solid var(--accent); }
 main.quick-add .hint, main.quick-add .form-error { margin: 0; color: var(--muted); }
 kbd { font: inherit; font-weight: 700; padding: .05rem .4rem; border: 1px solid var(--line); border-radius: 4px; }
+/* The footer sits at the bottom of short screens and after the content on long ones. */
+#root:has(> .app-footer) { min-height: 100dvh; display: flex; flex-direction: column; }
+#root:has(> .app-footer) > main { width: 100%; }
+.app-footer { margin-top: auto; display: flex; flex-wrap: wrap; justify-content: center; gap: .25rem 1.5rem; padding: 1.25rem 1rem 1.5rem; color: var(--muted); font-size: .875rem; border-top: 1px solid var(--rule); }
 .update-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .5rem 1rem; padding: .75rem 1rem; background: var(--highlight); color: var(--on-highlight); border-bottom: 1px solid var(--line); }
 
 @media (hover: hover) {

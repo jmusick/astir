@@ -7,6 +7,7 @@ import { isApp } from './platform/platform';
 import { QUICK_ADD_WINDOW } from './platform/quickAdd';
 import QuickAddBox from './platform/QuickAddBox';
 import UpdateBanner from './platform/UpdateBanner';
+import Footer from './ui/Footer';
 import './index.css';
 
 const render = (root: ReactNode) => createRoot(document.getElementById('root')!).render(<StrictMode>{root}</StrictMode>);
@@ -17,9 +18,9 @@ if (isApp) {
     const quickAdd = getCurrentWindow().label === QUICK_ADD_WINDOW;
     if (quickAdd) document.documentElement.classList.add('quick-add-window');
     // Only the main window checks for updates, whoever is signed in.
-    render(quickAdd ? <QuickAddBox /> : <><UpdateBanner /><App /></>);
+    render(quickAdd ? <QuickAddBox /> : <><UpdateBanner /><App /><Footer /></>);
   });
 } else {
-  render(<App />);
+  render(<><App /><Footer /></>);
   registerServiceWorker();
 }
