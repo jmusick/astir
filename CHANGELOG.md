@@ -4,6 +4,12 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-17
+
+### Changed
+
+- An open task now sits in its own bordered card, with its rename and delete buttons next to its title, so it's clear which controls edit that task. The add box under Today and each list is set apart from the tasks above it by a rule and a bolder heading.
+
 ## [0.14.0] - 2026-11-17
 
 ### Added
@@ -108,7 +114,8 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 - Astir has a home at [astir.stonedragonmedia.com](https://astir.stonedragonmedia.com). There's nothing to use yet: the page is a placeholder while the daily list is built.
 - Astir's code is available under the Astir Non-Commercial License: free for personal and non-commercial use.
 
-[Unreleased]: https://github.com/jmusick/astir/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/jmusick/astir/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/jmusick/astir/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/jmusick/astir/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/jmusick/astir/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/jmusick/astir/compare/v0.11.0...v0.12.0
