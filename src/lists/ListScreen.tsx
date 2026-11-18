@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
-import { cleanTitle, removed, renamed, setCompleted, TITLE_MAX } from '../sync/daily';
+import type { FormEvent, ReactNode } from 'react';
+import { cleanTitle, removed, renamed, repositioned, setCompleted, TITLE_MAX } from '../sync/daily';
 import { dueLabel, listView, newListTask, removedList, renamedList, tasksInList } from '../sync/lists';
 import type { TaskEntry } from '../sync/lists';
 import type { SyncRecord } from '../sync/types';
@@ -8,6 +8,7 @@ import { todayHref } from '../route';
 import ItemDetails from '../today/ItemDetails';
 import ItemRow from '../today/ItemRow';
 import { ItemMeta } from '../today/ItemMeta';
+import Sortable from '../ui/Sortable';
 
 interface Props {
   listId: string;
@@ -41,7 +42,7 @@ export default function ListScreen({ listId, records, day, timeZone, save, synce
   const { list, open, done } = view;
   const title = list.data!.title;
 
-  const row = ({ item, done: checked, subtasks }: TaskEntry) => <ItemRow key={item.id} item={item} done={checked} kind="task"
+  const row = ({ item, done: checked, subtasks }: TaskEntry, handle?: ReactNode) => <ItemRow key={item.id} item={item} done={checked} kind="task" handle={handle}
     meta={<ItemMeta subtasks={subtasks} due={item.data!.dueDay ? { label: dueLabel(item.data!.dueDay, day), late: !checked && item.data!.dueDay < day } : undefined} />}
     details={() => <ItemDetails item={item} subtasks={subtasks} day={day} timeZone={timeZone} save={save} />}
     onToggle={(value) => save(setCompleted(item, day, value))}
@@ -64,7 +65,9 @@ export default function ListScreen({ listId, records, day, timeZone, save, synce
       </div>}
     </header>
     <div className="panel list">
-      {open.length > 0 && <ul>{open.map(row)}</ul>}
+      {/* Open tasks are in the owner's order (D49); finished ones sort by when they were checked. */}
+      {open.length > 0 && <Sortable items={open} keyOf={(entry) => entry.item.id} labelOf={(entry) => entry.item.data!.title}
+        onMove={(from, to) => save(repositioned(open, from, to))} render={row} />}
       {!open.length && !done.length && <div className="empty-list">
         <p><strong>A fresh list.</strong> Add anything you want to keep track of. It stays here, day after day, until you check it off.</p>
         <p>Give a task a due date and it shows up in Today when it’s due.</p>
@@ -74,7 +77,7 @@ export default function ListScreen({ listId, records, day, timeZone, save, synce
         onAdd={(name, dueDay) => save(newListTask(crypto.randomUUID(), listId, name, Date.now(), dueDay))} />
       {done.length > 0 && <details className="done-tasks">
         <summary>Done ({done.length})</summary>
-        <ul>{done.map(row)}</ul>
+        <ul>{done.map((entry) => row(entry))}</ul>
       </details>}
     </div>
   </section>;

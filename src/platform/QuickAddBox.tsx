@@ -5,7 +5,7 @@ import { SUBMIT_EVENT } from './quickAdd';
 
 /**
  * The quick-add window's whole UI: one field. Enter sends the title to the main window, which adds
- * it to today's "Today only" panel; Escape, or clicking elsewhere, closes it without adding (D35).
+ * it as a one-off task at the bottom of Today (D50); Escape, or clicking elsewhere, closes it without adding (D35).
  */
 export default function QuickAddBox() {
   const [title, setTitle] = useState('');

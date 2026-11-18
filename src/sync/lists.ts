@@ -5,7 +5,7 @@ import { recordKey } from './types';
 import type { ItemData, SyncRecord } from './types';
 
 // Named lists (D8): they never reset. Their tasks may have a due date (D26), and the ones due
-// today or overdue also show in Today's "Due from your lists" panel (D27). Pure, like daily.ts.
+// today or overdue also show in Today's one list (D27, D47). Pure, like daily.ts.
 
 export interface ListData { title: string; position?: number }
 

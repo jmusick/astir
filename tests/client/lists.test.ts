@@ -4,6 +4,8 @@ import { dueEntries, dueLabel, listSummaries, listView, newList, newListTask, ne
 import type { ListData } from '../../src/sync/lists';
 import { keyOf } from '../../src/sync/types';
 import type { ItemData, SyncRecord } from '../../src/sync/types';
+import type { TodayView } from '../../src/sync/daily';
+const tasksOf = (v: TodayView) => v.entries.filter((e) => e.source === 'today');
 
 const MONDAY = '2026-11-16';
 const TUESDAY = '2026-11-17';
@@ -106,8 +108,8 @@ describe('subtasks', () => {
     apply(records, newSubtask('number', item(records, 'call'), 'Find the number', 1));
     apply(records, setCompleted(item(records, 'number'), MONDAY, true));
     const view = todayView(records, TUESDAY, alwaysMonday);
-    expect(titles(view.tasks)).toEqual(['Call the bank']);
-    expect(view.tasks[0].subtasks!.map((s) => s.done)).toEqual([true]);
+    expect(titles(tasksOf(view))).toEqual(['Call the bank']);
+    expect(tasksOf(view)[0].subtasks!.map((s) => s.done)).toEqual([true]);
     expect(view.total).toBe(1);
   });
 

@@ -90,6 +90,7 @@ nav.views .form-error { margin-top: .5rem; }
 .panel.habits { background: var(--habit-tint); }
 .panel.tasks { background: var(--task-tint); }
 .panel.due { background: var(--due-tint); }
+.panel.day-list { background: var(--task-tint); max-width: 56rem; }
 .panel.list { background: var(--list-tint); }
 .panel h2 { margin: 0 0 1rem; font-size: 1.25rem; color: var(--text); }
 .panel ul { list-style: none; margin: 0 0 .75rem; padding: 0; }
@@ -116,6 +117,10 @@ input.check:checked::after { opacity: 1; }
 .meta { display: flex; flex-wrap: wrap; gap: .25rem .5rem; margin: .1rem 0 .4rem; }
 .chip { font-size: 1rem; color: var(--muted); overflow-wrap: anywhere; }
 .chip.late { color: var(--danger); font-weight: 600; }
+.chip.repeats { display: inline-flex; align-items: center; }
+.chip.repeats svg { width: 16px; height: 16px; }
+.drag-handle { flex: 0 0 auto; justify-content: center; cursor: grab; touch-action: none; }
+.item.dragging { position: relative; z-index: 1; background: var(--surface); outline: 2px solid var(--accent); cursor: grabbing; }
 .carried { display: inline-block; color: var(--danger); font-size: 1rem; font-weight: 600; margin-bottom: .25rem; }
 .actions, .row-actions { display: flex; align-items: center; gap: .5rem; }
 .row-actions { margin-bottom: .75rem; justify-content: flex-end; }
@@ -223,15 +228,11 @@ kbd { font: inherit; font-weight: 700; padding: .05rem .4rem; border: 1px solid 
   .item .title:hover { color: var(--accent); }
 }
 @media (min-width: 1120px) {
-  .today-panels { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .today-panels .panel { min-height: 360px; }
   .history-screen .panels { grid-template-columns: 1fr 1fr; }
   .who { display: none; }
 }
 @media (min-width: 720px) and (max-width: 1119px) {
   .topbar nav.views { flex-basis: 100%; order: 3; }
-  .today-panels { grid-template-columns: 1fr 1fr; }
-  .today-panels .due { grid-column: 1 / -1; }
   .history-screen .panels { grid-template-columns: 1fr 1fr; }
   .hero { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 1.5rem; }
   .hero h1 { font-size: 4.5rem; }

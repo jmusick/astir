@@ -25,6 +25,11 @@ export interface ItemData {
   createdDay?: string | null;
   dueDay?: string | null;
   reminder?: string | null;
+  /** A daily task's usual place on Today (D47, D48). Absent on v1 records: see `todayPlace`. */
+  todayPosition?: number | null;
+  /** Its place on Today for one carry or due date only, the one that began on carryDay (D54, D65). */
+  carryPosition?: number | null;
+  carryDay?: string | null;
 }
 export interface ScheduleData { itemId: string; effectiveDay: string; weekdays: number[] }
 export interface CompletionData { itemId: string; day: string | null; completed: boolean }

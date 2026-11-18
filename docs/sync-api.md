@@ -43,7 +43,7 @@ The latest client edit timestamp wins per record. Equal timestamps keep the firs
 | Entity | Fields |
 | --- | --- |
 | `list` | `title` (required), `position` (optional number, default 0) |
-| `item` | `kind`: `habit`, `today` or `task`; `title` (required); `notes` (default empty); `position` (default 0); nullable `listId`, `parentId`, `originalDay`, `createdDay`, `dueDay`, `reminder` |
+| `item` | `kind`: `habit`, `today` or `task`; `title` (required); `notes` (default empty); `position` (default 0); nullable `listId`, `parentId`, `originalDay`, `createdDay`, `dueDay`, `reminder`, `todayPosition`, `carryPosition`, `carryDay` |
 | `schedule` | `itemId`, `effectiveDay`, `weekdays`: distinct integers 0 (Sunday) to 6 (Saturday), at least one; all seven means every day |
 | `completion` | `itemId`, nullable `day`, `completed` (required boolean) |
 | `day` | `effectiveDay`, `timeZone` (an IANA zone such as `America/New_York`), `startHour` (whole hour, 0–23) |
@@ -55,6 +55,7 @@ The latest client edit timestamp wins per record. Equal timestamps keep the firs
 - A **today-only task** requires `originalDay`. It has no list, creation day or due date. Its reminder is an optional `HH:mm` time on its original day. Clients preserve the original day across rollovers.
 - A **named-list task** requires `listId`. It has no creation or original day. Its optional due date is `dueDay`. Its reminder is an optional UTC instant formatted `YYYY-MM-DDTHH:mm:00.000Z`.
 - A task's `parentId` may reference a top-level task of the same kind, list and original day. Subtasks cannot have their own subtasks. They have independent completion records; completing all children does not complete the parent.
+- **Places.** `position` orders a list's tasks, a task's subtasks and lists themselves. `todayPosition` is a habit's or today-only task's usual place on Today; records written before it existed have none, and clients sort those habits first, then tasks, by `position` (D68). `carryPosition` with `carryDay` is a place on Today that lasts for one carry or due date only: a list task's applies while its `dueDay` equals `carryDay` (D54, D65). All three are optional, so older clients that don't know them keep working, and they pass them through untouched because every edit sends the whole record (D72). A drag edits only the moved records.
 - Item `kind`, `listId`, `parentId`, `originalDay` and `createdDay` are immutable. This API does not support moving or converting items.
 - A schedule references a habit. Its ID is **`itemId:effectiveDay`**. The first version takes effect on the habit's creation day; the client submits later versions effective from the next account reset (D34/D40). History selects the latest version effective on or before the day being viewed. The server stores these versions separately and rejects versions before the creation day; computing the account's current day and next reset belongs to the client (`src/sync/day.ts`).
 - A habit completion's ID is **`itemId:YYYY-MM-DD`**, with that day in `data.day`, on or after creation. A task/subtask completion's ID is **`itemId:task`**, with null/omitted `data.day`. These semantic IDs ensure two devices create one record for the same completion.

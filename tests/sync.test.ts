@@ -54,6 +54,16 @@ describe('sync model and conflicts', () => {
     expect(page.changes.find((c) => c.id === 'child')?.data?.parentId).toBe('today');
     expect(page.changes.find((c) => c.id === 'task')?.data?.notes).toBe('Notes');
   });
+  it('stores Today places, defaults them to null, and rejects bad ones', async () => {
+    const task = change('item', 'task', { kind: 'task', title: 'Ship', listId: 'work', dueDay: DAY, carryPosition: 1.5, carryDay: DAY });
+    expect((await push([list(), today('placed', { todayPosition: -2.25 }), today(), task])).status).toBe(200);
+    const page = await pull();
+    expect(page.changes.find((c) => c.id === 'placed')?.data).toMatchObject({ todayPosition: -2.25, carryPosition: null, carryDay: null });
+    expect(page.changes.find((c) => c.id === 'today')?.data).toMatchObject({ todayPosition: null });
+    expect(page.changes.find((c) => c.id === 'task')?.data).toMatchObject({ carryPosition: 1.5, carryDay: DAY });
+    expect((await push([today('bad', { todayPosition: 'top' })])).status).toBe(400);
+    expect((await push([today('bad', { carryDay: '2026-13-01' })])).status).toBe(400);
+  });
   it('uses client edit times, keeps equal-time first writers, and does not allocate revisions for retries', async () => {
     await push([list('work', NOW - 100)]);
     const page = await pull();

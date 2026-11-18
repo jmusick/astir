@@ -30,7 +30,7 @@ Spacing is based on 4px. Panels have square corners and separate through flat co
 Wide browser (1120px and above)
 [brand / Today / History / named lists / New list / Settings / Sign out]
 [Today + date + Add task                  ][ring / remaining / reset]
-[Habits                   ][Today only             ][Due from lists]
+[Today's one list, in the owner's order, with the add box under it     ]
 
 Windows utility window (440px default)
 [brand                     Settings / Sign out]
@@ -38,9 +38,8 @@ Windows utility window (440px default)
 [date                                         ]
 [Today                                Add task]
 [ring / remaining / reset                     ]
-[Habits                                       ]
-[Today only                                   ]
-[Due from lists, when present                 ]
+[Today's one list: drag handle, check, title  ]
+[Add box: Once / Every day / Chosen days      ]
 
 Narrow Settings
 [header and navigation                        ]

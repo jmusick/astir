@@ -5,6 +5,9 @@ import {
 } from '../../src/sync/daily';
 import { keyOf } from '../../src/sync/types';
 import type { ItemData, SyncRecord } from '../../src/sync/types';
+import type { TodayView } from '../../src/sync/daily';
+const habitsOf = (v: TodayView) => v.entries.filter((e) => e.source === 'habit');
+const tasksOf = (v: TodayView) => v.entries.filter((e) => e.source === 'today');
 
 const MONDAY = '2026-11-16';
 const TUESDAY = '2026-11-17';
@@ -33,8 +36,8 @@ describe('today view', () => {
 
   it('shows Monday’s three habits and two tasks with the ring at 0%', () => {
     const view = todayView(mondayScenario(), MONDAY, () => MONDAY);
-    expect(view.habits.map((e) => e.item.data!.title)).toEqual(['Walk', 'Read', 'Stretch']);
-    expect(view.tasks.map((e) => e.item.data!.title)).toEqual(['Call the bank', 'Ship the release']);
+    expect(habitsOf(view).map((e) => e.item.data!.title)).toEqual(['Walk', 'Read', 'Stretch']);
+    expect(tasksOf(view).map((e) => e.item.data!.title)).toEqual(['Call the bank', 'Ship the release']);
     expect(view.percent).toBe(0);
     expect(progressLabel(view)).toBe('0 done · 5 to go');
     expect(view.isNew).toBe(false);
@@ -47,20 +50,20 @@ describe('today view', () => {
     const view = todayView(records, MONDAY, () => MONDAY);
     expect(view.percent).toBe(40);
     expect(progressLabel(view)).toBe('2 done · 3 to go');
-    expect(view.habits.find((e) => e.item.id === 'read')?.done).toBe(true);
+    expect(habitsOf(view).find((e) => e.item.id === 'read')?.done).toBe(true);
   });
 
   it('leaves a Mon/Wed/Fri habit out of Tuesday entirely', () => {
     const records = store(newHabit('read', 'Read', [1, 3, 5], MONDAY, 1), newHabit('walk', 'Walk', EVERY_DAY, MONDAY, 2));
     const tuesday = todayView(records, TUESDAY, () => TUESDAY);
-    expect(tuesday.habits.map((e) => e.item.id)).toEqual(['walk']);
+    expect(habitsOf(tuesday).map((e) => e.item.id)).toEqual(['walk']);
     expect(tuesday.total).toBe(1);
-    expect(todayView(records, WEDNESDAY, () => WEDNESDAY).habits.map((e) => e.item.id)).toEqual(['read', 'walk']);
+    expect(habitsOf(todayView(records, WEDNESDAY, () => WEDNESDAY)).map((e) => e.item.id)).toEqual(['read', 'walk']);
   });
 
   it('marks a brand-new account as new, and an account with items as not', () => {
     const empty = todayView(new Map(), MONDAY, () => MONDAY);
-    expect(empty).toMatchObject({ isNew: true, total: 0, percent: 0, habits: [], tasks: [] });
+    expect(empty).toMatchObject({ isNew: true, total: 0, percent: 0, entries: [] });
     const unscheduled = todayView(store(newHabit('read', 'Read', [3], MONDAY, 1)), TUESDAY, () => TUESDAY);
     expect(unscheduled).toMatchObject({ isNew: false, total: 0 });
   });
@@ -75,24 +78,24 @@ describe('today view', () => {
 
   it('ignores habits before their creation day and tasks from later days', () => {
     const records = store(newHabit('walk', 'Walk', EVERY_DAY, TUESDAY, 1), newTodayTask('later', 'Later', TUESDAY, 2));
-    expect(todayView(records, MONDAY, () => MONDAY).habits).toEqual([]);
-    expect(todayView(records, MONDAY, () => MONDAY).tasks).toEqual([]);
+    expect(habitsOf(todayView(records, MONDAY, () => MONDAY))).toEqual([]);
+    expect(tasksOf(todayView(records, MONDAY, () => MONDAY))).toEqual([]);
   });
 
   it('hides deleted items, keeps their data as an archive, and keeps completions', () => {
     const records = store(newHabit('walk', 'Walk', EVERY_DAY, MONDAY, 1));
     apply(records, setCompleted(item(records, 'walk'), MONDAY, true));
     apply(records, removed(item(records, 'walk')));
-    expect(todayView(records, MONDAY, () => MONDAY).habits).toEqual([]);
+    expect(habitsOf(todayView(records, MONDAY, () => MONDAY))).toEqual([]);
     expect(item(records, 'walk')).toMatchObject({ deleted: true, data: { title: 'Walk', createdDay: MONDAY } });
     expect(records.get(`completion/walk:${MONDAY}`)?.deleted).toBe(false);
   });
 
   it('rolls an unfinished task into the next days, counting from its original day', () => {
     const records = store(newTodayTask('call', 'Call the bank', MONDAY, 1));
-    expect(todayView(records, MONDAY, () => MONDAY).tasks[0]).toMatchObject({ done: false, dayCount: 1 });
-    expect(todayView(records, TUESDAY, () => TUESDAY).tasks[0]).toMatchObject({ done: false, dayCount: 2 });
-    expect(todayView(records, WEDNESDAY, () => WEDNESDAY).tasks[0]).toMatchObject({ done: false, dayCount: 3 });
+    expect(tasksOf(todayView(records, MONDAY, () => MONDAY))[0]).toMatchObject({ done: false, dayCount: 1 });
+    expect(tasksOf(todayView(records, TUESDAY, () => TUESDAY))[0]).toMatchObject({ done: false, dayCount: 2 });
+    expect(tasksOf(todayView(records, WEDNESDAY, () => WEDNESDAY))[0]).toMatchObject({ done: false, dayCount: 3 });
     expect(todayView(records, TUESDAY, () => TUESDAY).total).toBe(1);
   });
 
@@ -100,8 +103,8 @@ describe('today view', () => {
     const records = store(newTodayTask('a', 'A', MONDAY, 1), newTodayTask('b', 'B', TUESDAY, 2), newHabit('walk', 'Walk', EVERY_DAY, MONDAY, 3));
     apply(records, setCompleted(item(records, 'walk'), MONDAY, true));
     const view = todayView(records, '2026-11-20', () => '2026-11-20');
-    expect(view.tasks.map((e) => [e.item.id, e.dayCount])).toEqual([['a', 5], ['b', 4]]);
-    expect(view.habits).toMatchObject([{ done: false }]);
+    expect(tasksOf(view).map((e) => [e.item.id, e.dayCount])).toEqual([['a', 5], ['b', 4]]);
+    expect(habitsOf(view)).toMatchObject([{ done: false }]);
     expect(isCompleted(records, habitCompletionId('walk', MONDAY))).toBe(true);
   });
 
@@ -112,10 +115,10 @@ describe('today view', () => {
     apply(records, setCompleted(item(records, 'call'), MONDAY, true));
     records.set(`completion/${taskCompletionId('ship')}`, { ...setCompleted(item(records, 'ship'), WEDNESDAY, true)[0], editedAt: WEDNESDAY_STARTS + 3_600_000 });
     const dayOf = (editedAt: number) => editedAt >= WEDNESDAY_STARTS ? WEDNESDAY : MONDAY;
-    expect(todayView(records, MONDAY, dayOf).tasks.map((e) => [e.item.id, e.done])).toEqual([['call', true], ['ship', false]]);
-    expect(todayView(records, TUESDAY, dayOf).tasks.map((e) => e.item.id)).toEqual(['ship']);
-    expect(todayView(records, WEDNESDAY, dayOf).tasks).toMatchObject([{ item: { id: 'ship' }, done: true, dayCount: 3 }]);
-    expect(todayView(records, '2026-11-19', dayOf).tasks).toEqual([]);
+    expect(tasksOf(todayView(records, MONDAY, dayOf)).map((e) => [e.item.id, e.done])).toEqual([['call', true], ['ship', false]]);
+    expect(tasksOf(todayView(records, TUESDAY, dayOf)).map((e) => e.item.id)).toEqual(['ship']);
+    expect(tasksOf(todayView(records, WEDNESDAY, dayOf))).toMatchObject([{ item: { id: 'ship' }, done: true, dayCount: 3 }]);
+    expect(tasksOf(todayView(records, '2026-11-19', dayOf))).toEqual([]);
   });
 
   it('counts a check stamped a few minutes past the reset as done on the day it was made', () => {
@@ -123,15 +126,15 @@ describe('today view', () => {
     const records = store(newTodayTask('call', 'Call', MONDAY, 1));
     records.set(`completion/${taskCompletionId('call')}`, { ...setCompleted(item(records, 'call'), MONDAY, true)[0], editedAt: RESET + 2 * 60_000 });
     const dayOf = (editedAt: number) => editedAt >= RESET ? TUESDAY : MONDAY;
-    expect(todayView(records, MONDAY, dayOf).tasks).toMatchObject([{ done: true }]);
-    expect(todayView(records, TUESDAY, dayOf).tasks).toMatchObject([{ done: true, dayCount: 2 }]);
+    expect(tasksOf(todayView(records, MONDAY, dayOf))).toMatchObject([{ done: true }]);
+    expect(tasksOf(todayView(records, TUESDAY, dayOf))).toMatchObject([{ done: true, dayCount: 2 }]);
   });
 
   it('rolls a task forward again if it’s unchecked', () => {
     const records = store(newTodayTask('call', 'Call', MONDAY, 1));
     apply(records, setCompleted(item(records, 'call'), MONDAY, true));
     apply(records, setCompleted(item(records, 'call'), MONDAY, false));
-    expect(todayView(records, WEDNESDAY, () => MONDAY).tasks).toMatchObject([{ done: false, dayCount: 3 }]);
+    expect(tasksOf(todayView(records, WEDNESDAY, () => MONDAY))).toMatchObject([{ done: false, dayCount: 3 }]);
   });
 
   it('labels carried days', () => {
@@ -171,7 +174,7 @@ describe('records', () => {
 
   it('renames with the full record, not a patch', () => {
     const records = store(newTodayTask('t', 'Call', MONDAY, 2));
-    expect(renamed(item(records, 't'), 'Call mom')[0].data).toEqual({ kind: 'today', title: 'Call mom', originalDay: MONDAY, position: 2 });
+    expect(renamed(item(records, 't'), 'Call mom')[0].data).toEqual({ kind: 'today', title: 'Call mom', originalDay: MONDAY, position: 2, todayPosition: 2 });
   });
 
   it('validates titles and weekdays', () => {

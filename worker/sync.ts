@@ -71,7 +71,7 @@ function dataOf(entity: Entity, value: unknown): Data {
     fields(d, ['itemId', 'day', 'reminder']);
     return { itemId: id(d.itemId), day: d.day == null ? null : day(d.day), reminder: reminderOf(d.reminder) };
   }
-  fields(d, ['kind', 'title', 'notes', 'listId', 'parentId', 'originalDay', 'createdDay', 'dueDay', 'reminder', 'position']);
+  fields(d, ['kind', 'title', 'notes', 'listId', 'parentId', 'originalDay', 'createdDay', 'dueDay', 'reminder', 'position', 'todayPosition', 'carryPosition', 'carryDay']);
   if (typeof d.kind !== 'string' || !['habit', 'today', 'task'].includes(d.kind)) throw new SyncError('Item kind must be habit, today or task.');
   const kind = d.kind;
   const listId = d.listId == null ? null : id(d.listId);
@@ -87,7 +87,10 @@ function dataOf(entity: Entity, value: unknown): Data {
   }
   return { kind, title: text(d.title, 'Title', SYNC_LIMITS.title, true), notes: text(d.notes ?? '', 'Notes', SYNC_LIMITS.notes),
     listId, parentId, originalDay: kind === 'today' ? day(d.originalDay) : null,
-    createdDay: kind === 'habit' ? day(d.createdDay) : null, dueDay: d.dueDay == null ? null : day(d.dueDay), reminder, position: position(d.position) };
+    createdDay: kind === 'habit' ? day(d.createdDay) : null, dueDay: d.dueDay == null ? null : day(d.dueDay), reminder, position: position(d.position),
+    // Places on Today (D47, D54, D65). Optional, so clients that predate them keep working (D72).
+    todayPosition: d.todayPosition == null ? null : position(d.todayPosition),
+    carryPosition: d.carryPosition == null ? null : position(d.carryPosition), carryDay: d.carryDay == null ? null : day(d.carryDay) };
 }
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\.000Z$/;
 /** An HH:mm time, or a list task's UTC instant (YYYY-MM-DDTHH:mm:00.000Z). */

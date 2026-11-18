@@ -10,6 +10,10 @@ import { SyncRequestError, httpTransport } from '../src/sync/transport';
 import type { SyncTransport } from '../src/sync/transport';
 import type { ItemData, SyncRecord } from '../src/sync/types';
 import { testDatabase } from './helpers/d1';
+import type { TodayView } from '../src/sync/daily';
+const habitsOf = (v: TodayView) => v.entries.filter((e) => e.source === 'habit');
+const tasksOf = (v: TodayView) => v.entries.filter((e) => e.source === 'today');
+const dueOf = (v: TodayView) => v.entries.filter((e) => e.source === 'list');
 
 // The client engine against the real Worker handler and migration SQL: the wire contract end to end.
 const ORIGIN = 'https://astir.stonedragonmedia.com';
@@ -63,8 +67,8 @@ describe('sync engine against the Worker', () => {
     const records = phone.getSnapshot().records;
     expect(listSummaries(records).map((s) => [s.list.data!.title, s.open])).toEqual([['Work', 1], ['Groceries', 1]]);
     const view = todayView(records, MONDAY, () => MONDAY);
-    expect(view.due.map((e) => [e.item.data!.notes, e.subtasks.map((s) => s.done)])).toEqual([['Ask Sam first', [true]]]);
-    expect(view.tasks[0].subtasks!.map((s) => s.item.id)).toEqual(['number']);
+    expect(dueOf(view).map((e) => [e.item.data!.notes, e.subtasks!.map((s) => s.done)])).toEqual([['Ask Sam first', [true]]]);
+    expect(tasksOf(view)[0].subtasks!.map((s) => s.item.id)).toEqual(['number']);
 
     await phone.change(removedList(records, records.get('list/work') as SyncRecord<ListData>));
     await phone.sync();
@@ -93,8 +97,8 @@ describe('sync engine against the Worker', () => {
     const phone = await device(cookie);
     await phone.sync();
     const view = todayView(phone.getSnapshot().records, MONDAY, () => MONDAY);
-    expect(view.habits.map((e) => e.item.id)).toEqual(['walk', 'read']);
-    expect(view.tasks.map((e) => e.item.id)).toEqual(['call']);
+    expect(habitsOf(view).map((e) => e.item.id)).toEqual(['walk', 'read']);
+    expect(tasksOf(view).map((e) => e.item.id)).toEqual(['call']);
     expect(view.done).toBe(2);
     expect(item(phone, 'old')).toMatchObject({ deleted: true, data: { title: 'Old habit' } });
     expect(phone.getSnapshot().records.get(`completion/old:${MONDAY}`)?.data).toMatchObject({ completed: true });

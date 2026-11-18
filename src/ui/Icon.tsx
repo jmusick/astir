@@ -6,6 +6,8 @@ const paths = {
   chevron: <path d="m8 5 7 7-7 7" />,
   edit: <><path d="m5 15 10-10 4 4L9 19H5zM13 7l4 4" /></>,
   close: <path d="m6 6 12 12M6 18 18 6" />,
+  grip: <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" strokeWidth="3" />,
+  repeat: <path d="m17 3 3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3m16-2v2a3 3 0 0 1-3 3H4" />,
 };
 
 export default function Icon({ name }: { name: keyof typeof paths }) {

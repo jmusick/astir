@@ -7,6 +7,8 @@ import { httpTransport, SyncRequestError } from '../../src/sync/transport';
 import type { SyncTransport } from '../../src/sync/transport';
 import { keyOf } from '../../src/sync/types';
 import type { ItemData, PullPage, SyncRecord } from '../../src/sync/types';
+import type { TodayView } from '../../src/sync/daily';
+const tasksOf = (v: TodayView) => v.entries.filter((e) => e.source === 'today');
 
 const DAY = '2026-11-16';
 
@@ -168,7 +170,7 @@ describe('sync', () => {
     expect(server.pulls.slice(-3)).toEqual(['0', '2', '4']);
     expect(b.store.writes - writes).toBe(3);
     expect(b.store.cursor).toBe('5');
-    expect(todayView(b.engine.getSnapshot().records, DAY, () => DAY).tasks).toHaveLength(5);
+    expect(tasksOf(todayView(b.engine.getSnapshot().records, DAY, () => DAY))).toHaveLength(5);
   });
 
   it('keeps work local and retries with backoff while offline', async () => {

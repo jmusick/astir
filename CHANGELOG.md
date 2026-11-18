@@ -4,6 +4,11 @@ All notable changes to Astir are documented here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Changed
+
+- Today is now one list in the order you choose. Habits, one-off tasks and list tasks that are due sit together, and you can drag them into the order you'll do them. Your existing habits come first, then your tasks, each in the order they were in. Repeating tasks show a small repeat mark, and a list task that's due shows its list's name. A newly due list task starts at the top, most overdue first, until you drag it somewhere else, and moving it on Today doesn't move it in its list. New tasks land at the bottom, from the add box or the quick-add hotkey. One add box now covers everything: choose Once, Every day or Chosen days.
+- Drag to reorder works in your named lists and on subtasks too, and the order syncs to your other devices. To move a task without a mouse, focus its handle and use the up and down arrow keys.
+
 ## [0.12.0] - 2026-11-17
 
 ### Added

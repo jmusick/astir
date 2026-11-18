@@ -18,9 +18,11 @@ interface Props {
   meta?: ReactNode;
   /** Notes, dates and subtasks, shown below the row when opened. */
   details?: () => ReactNode;
+  /** The drag handle when the row sits in a reorderable list (D49). */
+  handle?: ReactNode;
 }
 
-export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete, dayCount = 1, meta, details }: Props) {
+export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete, dayCount = 1, meta, details, handle }: Props) {
   const title = item.data!.title;
   const id = useId();
   const [editing, setEditing] = useState(false);
@@ -84,6 +86,7 @@ export default function ItemRow({ item, done, kind, onToggle, onRename, onDelete
 
   return <li ref={row} className={`item ${kind}${done ? ' done' : ''}${flash ? ' focused' : ''}`}>
     <div className="item-main">
+      {handle}
       <input type="checkbox" className="check" id={`${id}-check`} checked={done} onChange={(e) => onToggle(e.target.checked)} />
       <div className="item-content">{editing
         ? <input className="rename" aria-label={`Rename “${title}”`} value={draft} maxLength={TITLE_MAX} autoFocus

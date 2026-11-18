@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { authApi } from '../authApi';
 import type { Account } from '../authApi';
 import { forgetAccount } from '../rememberedAccount';
-import { newHabit, newTodayTask, removed, renamed, setCompleted, todayView } from '../sync/daily';
+import { newHabit, newTodayTask, removed, renamed, reorderedToday, repeatLabel, setCompleted, todayBottom, todayView } from '../sync/daily';
 import { dueLabel, listSummaries, newList } from '../sync/lists';
 import { addDays, changeDaySettings, dayAt, dayLabel, dayVersions, deviceTimeZone, firstDaySettings, hourLabel, settingsOn } from '../sync/day';
 import type { DayData, ItemData, SyncRecord } from '../sync/types';
@@ -18,7 +18,7 @@ import { FocusItem } from '../reminders/focusItem';
 import type { FocusRequest } from '../reminders/focusItem';
 import { requestNotifications, useNotificationPermission } from '../reminders/permission';
 import { useReminders } from '../reminders/useReminders';
-import { AddHabitForm, AddTaskForm } from './AddForms';
+import { AddTodayForm } from './AddForms';
 import ItemDetails from './ItemDetails';
 import { ItemMeta } from './ItemMeta';
 import ItemRow from './ItemRow';
@@ -27,6 +27,7 @@ import SyncStatusLine from './SyncStatusLine';
 import { useSyncEngine } from './useSyncEngine';
 import Brand from '../ui/Brand';
 import Icon from '../ui/Icon';
+import Sortable from '../ui/Sortable';
 
 const SIGN_OUT_SYNC_MS = 8_000;
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: () => T): Promise<T> {
@@ -193,44 +194,28 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
           </p>}
           {view.isNew && <section className="welcome" aria-label="Get started">
             <h2>Start your first day</h2>
-            <p>Add a habit you want to keep, like a walk or ten minutes of reading, and one thing you’ll finish today. Check them off and watch the ring fill.</p>
+            <p>Add what you want to get done today: one-off tasks, and the ones that repeat, like a walk or ten minutes of reading. Drag them into the order you’ll do them, then check them off and watch the ring fill.</p>
           </section>}
-          <div className="panels today-panels">
-            <section className="panel habits" aria-labelledby="habits-heading">
-              <h2 id="habits-heading">Habits</h2>
-              {view.habits.length > 0 ? <ul>
-                {view.habits.map(({ item, done }) => <ItemRow key={item.id} item={item} done={done} kind="habit"
-                  details={() => <ItemDetails item={item} day={day} timeZone={zone} save={save} />}
-                  onToggle={(checked) => save(setCompleted(item, day, checked))}
-                  onRename={(title) => save(renamed(item, title))}
-                  onDelete={() => save(removed(item))} />)}
-              </ul> : <p className="empty">{view.isNew ? 'Habits repeat every day or on the days you choose.' : 'No habits scheduled today.'}</p>}
-              <AddHabitForm key={day} day={day} first={view.isNew} onAdd={(title, weekdays) => save(newHabit(crypto.randomUUID(), title, weekdays, day, Date.now()))} />
-            </section>
-            <section className="panel tasks" aria-labelledby="tasks-heading">
-              <h2 id="tasks-heading">Today only</h2>
-              {view.tasks.length > 0 ? <ul>
-                {view.tasks.map(({ item, done, dayCount, subtasks }) => <ItemRow key={item.id} item={item} done={done} kind="task" dayCount={dayCount}
-                  meta={<ItemMeta subtasks={subtasks} />}
-                  details={() => <ItemDetails item={item} subtasks={subtasks} day={day} timeZone={zone} save={save} />}
-                  onToggle={(checked) => save(setCompleted(item, day, checked))}
-                  onRename={(title) => save(renamed(item, title))}
-                  onDelete={() => save(removed(item, snapshot!.records))} />)}
-              </ul> : <p className="empty">{view.isNew ? 'One-off tasks for today live here.' : 'Nothing else planned for today.'}</p>}
-              <AddTaskForm first={view.isNew} onAdd={(title) => save(newTodayTask(crypto.randomUUID(), title, day, Date.now()))} />
-            </section>
-            {view.due.length > 0 && <section className="panel due" aria-labelledby="due-heading">
-              <h2 id="due-heading">Due from your lists</h2>
-              <ul>
-                {view.due.map(({ item, done, subtasks, listTitle, overdue }) => <ItemRow key={item.id} item={item} done={done} kind="task"
-                  meta={<ItemMeta subtasks={subtasks} from={listTitle} due={{ label: dueLabel(item.data!.dueDay!, day), late: overdue > 0 && !done }} />}
-                  details={() => <ItemDetails item={item} subtasks={subtasks} day={day} timeZone={zone} save={save} />}
-                  onToggle={(checked) => save(setCompleted(item, day, checked))}
-                  onRename={(title) => save(renamed(item, title))}
-                  onDelete={() => save(removed(item, snapshot!.records))} />)}
-              </ul>
-            </section>}
-          </div>
+          <section className="panel day-list" aria-labelledby="day-list-heading">
+            <h2 id="day-list-heading" className="sr-only">Today’s list</h2>
+            {view.entries.length > 0
+              ? <Sortable className="today-list" items={view.entries} keyOf={(entry) => entry.item.id} labelOf={(entry) => entry.item.data!.title}
+                  onMove={(from, to) => save(reorderedToday(view.entries, from, to))}
+                  render={(entry, handle) => <ItemRow key={entry.item.id} item={entry.item} done={entry.done} handle={handle}
+                    kind={entry.source === 'habit' ? 'habit' : 'task'} dayCount={entry.dayCount}
+                    meta={<ItemMeta subtasks={entry.subtasks} repeats={entry.repeats && repeatLabel(entry.repeats)} from={entry.listTitle}
+                      due={entry.source === 'list' ? { label: dueLabel(entry.item.data!.dueDay!, day), late: (entry.overdue ?? 0) > 0 && !entry.done } : undefined} />}
+                    details={() => <ItemDetails item={entry.item} subtasks={entry.subtasks} day={day} timeZone={zone} save={save} />}
+                    onToggle={(checked) => save(setCompleted(entry.item, day, checked))}
+                    onRename={(title) => save(renamed(entry.item, title))}
+                    onDelete={() => save(removed(entry.item, snapshot!.records))} />} />
+              : <p className="empty">{view.isNew ? 'Add a task below. It can be just for today, or repeat every day or on the days you choose.' : 'Nothing planned for today.'}</p>}
+            <AddTodayForm key={day} day={day} first={view.isNew} onAdd={(title, weekdays) => {
+              const id = crypto.randomUUID();
+              const place = todayBottom(snapshot!.records, Date.now());
+              save(weekdays ? newHabit(id, title, weekdays, day, place) : newTodayTask(id, title, day, place));
+            }} />
+          </section>
         </>}</div>
       <SyncStatusLine status={snapshot!.status} localOnly={localOnly} onRetry={() => void engine.sync()}
         onExport={() => void exportNow(engine, account.email)} />

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { cleanNotes, cleanTitle, edited, NOTES_MAX, removed, renamed, setCompleted, TITLE_MAX } from '../sync/daily';
+import { cleanNotes, cleanTitle, edited, NOTES_MAX, removed, renamed, repositioned, setCompleted, TITLE_MAX } from '../sync/daily';
 import { wallTime, zonedInstant } from '../sync/day';
 import { newSubtask } from '../sync/lists';
 import { requestNotifications, useNotificationPermission } from '../reminders/permission';
@@ -8,6 +8,7 @@ import { nativeReminders } from '../platform/notifier';
 import type { Entry } from '../sync/records';
 import type { ItemData, SyncRecord } from '../sync/types';
 import ItemRow from './ItemRow';
+import Sortable from '../ui/Sortable';
 
 interface Props {
   item: SyncRecord<ItemData>;
@@ -86,12 +87,12 @@ export default function ItemDetails({ item, subtasks, day, timeZone, save }: Pro
       : 'Turn on notifications to have reminders pop up while Astir is open in a tab.'}</p>}
     {subtasks && <div className="subtasks" aria-labelledby={`${id}-subtasks`}>
       <h3 id={`${id}-subtasks`}>Subtasks</h3>
-      {subtasks.length > 0 && <ul>
-        {subtasks.map((sub) => <ItemRow key={sub.item.id} item={sub.item} done={sub.done} kind="subtask"
+      {subtasks.length > 0 && <Sortable items={subtasks} keyOf={(sub) => sub.item.id} labelOf={(sub) => sub.item.data!.title}
+        onMove={(from, to) => save(repositioned(subtasks, from, to))}
+        render={(sub, handle) => <ItemRow key={sub.item.id} item={sub.item} done={sub.done} kind="subtask" handle={handle}
           onToggle={(checked) => save(setCompleted(sub.item, day, checked))}
           onRename={(title) => save(renamed(sub.item, title))}
-          onDelete={() => save(removed(sub.item))} />)}
-      </ul>}
+          onDelete={() => save(removed(sub.item))} />} />}
       <AddSubtaskForm parentTitle={data.title} onAdd={(title) => save(newSubtask(crypto.randomUUID(), item, title, Date.now()))} />
     </div>}
   </div>;
