@@ -29,7 +29,8 @@ export function BucketActions({ entry, day, save }: { entry: TodayEntry; day: st
   const another = entry.another;
   return <span className="meta bucket-actions">
     {extra && <span className="chip">Extra</span>}
-    {!record.data!.done && !extra && <button type="button" className="link" onClick={() => save(pickSkipped(record))}
+    {/* Only a fresh pick can be skipped; a carried one waits until it's done (D74). */}
+    {!record.data!.done && !extra && !entry.carry && <button type="button" className="link" onClick={() => save(pickSkipped(record))}
       aria-label={`Skip ${entry.pick.name} today`}>Skip</button>}
     {another && <button type="button" className="link" onClick={() => save(extraPick(entry.item.id, day, another, (entry.sub ?? 0) + 1))}
       aria-label={`Do another: ${another.data!.name}`}>Do another</button>}

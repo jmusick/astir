@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { authApi } from '../authApi';
 import type { Account } from '../authApi';
 import { forgetAccount } from '../rememberedAccount';
-import { pickChecked } from '../sync/buckets';
+import { pickChecked, pickSubtaskChecked } from '../sync/buckets';
 import { todayRowKey, checkedOff, newHabit, newTodayTask, removed, renamed, reorderedToday, repeatLabel, setCompleted, todayBottom, todayView } from '../sync/daily';
 import { dueLabel, listSummaries, newList } from '../sync/lists';
 import { addDays, changeDaySettings, dayAt, dayLabel, dayVersions, deviceTimeZone, firstDaySettings, hourLabel, settingsOn } from '../sync/day';
@@ -211,7 +211,8 @@ export default function TodayScreen({ account, onSignedOut }: { account: Account
                         due={entry.source === 'list' ? { label: dueLabel(entry.item.data!.dueDay!, day), late: (entry.overdue ?? 0) > 0 && !entry.done } : undefined} />
                       <BucketActions entry={entry} day={day} save={save} />
                     </>}
-                    details={() => <ItemDetails item={entry.item} pickNotes={entry.pick && { name: entry.pick.name, notes: entry.pick.notes }} subtasks={entry.subtasks} subtaskDay={entry.subtaskDay} day={day} timeZone={zone} save={save} records={snapshot!.records} />}
+                    details={() => <ItemDetails item={entry.item} pickNotes={entry.pick && { name: entry.pick.name, notes: entry.pick.notes }}
+                      checkSubtask={entry.pick && ((sub, checked) => pickSubtaskChecked(entry.pick!.record, sub.item.id, checked))} subtasks={entry.subtasks} subtaskDay={entry.subtaskDay} day={day} timeZone={zone} save={save} records={snapshot!.records} />}
                     onToggle={(checked) => save(entry.pick ? pickChecked(entry.pick.record, checked) : entry.source === 'list' ? setCompleted(entry.item, day, checked) : checkedOff(entry, checked))}
                     onRename={(title) => save(renamed(entry.item, title))}
                     onDelete={() => save(removed(entry.item, snapshot!.records))} />} />

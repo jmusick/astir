@@ -61,10 +61,10 @@ export default function HistoryScreen({ records, today, versions, requested }: P
       <section className="panel tasks" aria-labelledby="history-tasks-heading">
         <h2 id="history-tasks-heading">Tasks</h2>
         {view.tasks.length + view.dropped.length > 0 ? <ul>
-          {view.tasks.map(({ item, listTitle }) => <li key={item.id} className="item task past done">
+          {view.tasks.map(({ item, listTitle, pick }) => <li key={pick ? `${item.id}:${pick}` : item.id} className="item task past done">
             <div className="item-main">
               <span className="mark" aria-hidden="true" />
-              <span className="title">{item.data!.title}</span>
+              <span className="title">{pick ? `${item.data!.title}: ${pick}` : item.data!.title}</span>
               <span className="sr-only">, done</span>
               {listTitle && <span className="meta"><span className="chip">{listTitle}</span></span>}
             </div>

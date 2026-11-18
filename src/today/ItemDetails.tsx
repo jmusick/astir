@@ -30,10 +30,12 @@ interface Props {
   records?: ReadonlyMap<string, SyncRecord>;
   /** On a bucket pick row: the picked item's name and notes (D58). */
   pickNotes?: { name: string; notes: string };
+  /** How a subtask is checked when not on its own records, as on a pick row's copy of the checklist (D59). */
+  checkSubtask?: (sub: Entry, checked: boolean) => SyncRecord[];
 }
 
 /** The fields D26 gives each kind: notes and a reminder for all, a due date and subtasks for some. */
-export default function ItemDetails({ item, subtasks, subtaskDay = null, day, timeZone, save, records, pickNotes }: Props) {
+export default function ItemDetails({ item, subtasks, subtaskDay = null, day, timeZone, save, records, pickNotes, checkSubtask }: Props) {
   const data = item.data!;
   const id = useId();
   const listTask = data.kind === 'task';
@@ -108,7 +110,7 @@ export default function ItemDetails({ item, subtasks, subtaskDay = null, day, ti
       {subtasks.length > 0 && <Sortable items={subtasks} keyOf={(sub) => sub.item.id} labelOf={(sub) => sub.item.data!.title}
         onMove={(from, to) => save(repositioned(subtasks, from, to))}
         render={(sub, handle) => <ItemRow key={sub.item.id} item={sub.item} done={sub.done} kind="subtask" handle={handle}
-          onToggle={(checked) => save(checkedOff({ item: sub.item, completionDay: subtaskDay }, checked))}
+          onToggle={(checked) => save(checkSubtask ? checkSubtask(sub, checked) : checkedOff({ item: sub.item, completionDay: subtaskDay }, checked))}
           onRename={(title) => save(renamed(sub.item, title))}
           onDelete={() => save(removed(sub.item))} />} />}
       <AddSubtaskForm parentTitle={data.title} onAdd={(title) => save(newSubtask(crypto.randomUUID(), item, title, Date.now()))} />

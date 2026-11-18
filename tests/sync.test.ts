@@ -103,6 +103,19 @@ describe('sync model and conflicts', () => {
       expect((await push([c])).status, JSON.stringify(c)).toBe(400);
     }
   });
+  it('stores a carried pick’s first missed day, and subtask checks per pick row', async () => {
+    const pool = change('pool', 'iron', { itemId: 'habit', name: 'Iron Tide', createdDay: DAY });
+    const carried = change('pick', 'habit:2026-11-17:iron', { itemId: 'habit', day: '2026-11-17', poolId: 'iron', slot: 0, from: DAY });
+    const step = change('item', 'write', { kind: 'habit', title: 'Write it', createdDay: DAY, parentId: 'habit' });
+    const check = change('completion', `write:${DAY}:iron`, { itemId: 'write', day: DAY, completed: true, poolId: 'iron' });
+    expect((await push([habit(), pool, carried, step, check, completion('write', DAY)])).status).toBe(200);
+    const page = await pull();
+    expect(page.changes.find((c) => c.entity === 'pick')?.data).toMatchObject({ from: DAY });
+    expect(page.changes.filter((c) => c.entity === 'completion').map((c) => c.id).sort()).toEqual([`write:${DAY}`, `write:${DAY}:iron`]);
+    expect((await push([{ ...check, deleted: true, data: null }])).status).toBe(200);
+    expect((await push([{ ...carried, data: { ...carried.data, from: '2026-11-17' } }])).status).toBe(400);
+    expect((await push([change('completion', 'write:task:iron', { itemId: 'write', day: null, completed: true, poolId: 'iron' })])).status).toBe(400);
+  });
   it('limits a bucket to 100 items', async () => {
     await push([habit()]);
     const pools = Array.from({ length: 101 }, (_, i) => change('pool', `p${i}`, { itemId: 'habit', name: `Item ${i}`, createdDay: DAY }));

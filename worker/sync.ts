@@ -5,7 +5,7 @@ export const SYNC_LIMITS = { pool: 100, perDay: 20, lists: 100, openItems: 10_00
 const FUTURE_MS = 5 * 60_000;
 type Entity = 'list' | 'item' | 'schedule' | 'completion' | 'day' | 'dismissal' | 'pool' | 'pick';
 const ENTITIES: string[] = ['list', 'item', 'schedule', 'completion', 'day', 'dismissal', 'pool', 'pick'];
-type Data = Record<string, string | number | boolean | null | number[]>;
+type Data = Record<string, string | number | boolean | null | number[] | string[]>;
 type Change = { entity: Entity; id: string; editedAt: number; deleted: boolean; data: Data | null };
 type Row = { entity: Entity; id: string; edited_at: number; deleted: number; data: string | null; revision: number };
 class SyncError extends Error {
@@ -68,9 +68,11 @@ function dataOf(entity: Entity, value: unknown): Data {
     return { effectiveDay: day(d.effectiveDay), timeZone: timeZone(d.timeZone), startHour: d.startHour as number };
   }
   if (entity === 'completion') {
-    fields(d, ['itemId', 'day', 'completed']);
+    fields(d, ['itemId', 'day', 'completed', 'poolId']);
     if (typeof d.completed !== 'boolean') throw new SyncError('completed must be true or false.');
-    return { itemId: id(d.itemId), day: d.day == null ? null : day(d.day), completed: d.completed };
+    // A subtask checked on one bucket pick's row (D59): its own record per pick, so offline checks never collide.
+    if (d.poolId != null && d.day == null) throw new SyncError('A subtask check on a pick needs its day.');
+    return { itemId: id(d.itemId), day: d.day == null ? null : day(d.day), completed: d.completed, ...(d.poolId != null ? { poolId: id(d.poolId) } : {}) };
   }
   if (entity === 'pool') {
     // A bucket's pool item (D58). It joins the rotation the day after createdDay, unless the bucket starts that day.
@@ -81,11 +83,13 @@ function dataOf(entity: Entity, value: unknown): Data {
   }
   if (entity === 'pick') {
     // A pool item picked for a day (D61): a slot of the day's picks, or an extra (D57).
-    fields(d, ['itemId', 'day', 'poolId', 'slot', 'extra', 'done', 'skipped', 'place']);
+    fields(d, ['itemId', 'day', 'poolId', 'slot', 'extra', 'done', 'skipped', 'place', 'from']);
     if (!Number.isInteger(d.slot) || (d.slot as number) < 0 || (d.slot as number) > SYNC_LIMITS.pool) throw new SyncError('slot must be a whole number from 0 to 100.');
     for (const flag of ['extra', 'done', 'skipped'] as const) if (d[flag] !== undefined && typeof d[flag] !== 'boolean') throw new SyncError(`${flag} must be true or false.`);
     return { itemId: id(d.itemId), day: day(d.day), poolId: id(d.poolId), slot: d.slot as number, extra: d.extra === true, done: d.done === true,
-      skipped: d.skipped === true, place: d.place == null ? null : position(d.place) };
+      skipped: d.skipped === true, place: d.place == null ? null : position(d.place),
+      // A carried pick's first missed day (D60).
+      from: d.from == null ? null : carriedFrom(d.from, d.day as string) };
   }
   if (entity === 'dismissal') {
     fields(d, ['itemId', 'day', 'reminder']);
@@ -113,6 +117,12 @@ function dataOf(entity: Entity, value: unknown): Data {
     todayPosition: d.todayPosition == null ? null : position(d.todayPosition),
     carryPosition: d.carryPosition == null ? null : position(d.carryPosition), carryDay: d.carryDay == null ? null : day(d.carryDay) };
 }
+/** A carry begins on a day before the one it's carried into. */
+function carriedFrom(value: unknown, pickDay: string): string {
+  const from = day(value);
+  if (from >= pickDay) throw new SyncError('A carried pick must start before its day.');
+  return from;
+}
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\.000Z$/;
 /** An HH:mm time, or a list task's UTC instant (YYYY-MM-DDTHH:mm:00.000Z). */
 function reminderOf(value: unknown): string {
@@ -135,10 +145,12 @@ function changeOf(value: unknown, now: number): Change {
   let key: string;
   if (entity === 'schedule' || entity === 'completion' || entity === 'dismissal') {
     // Semantic, client-generated IDs make retries and simultaneous checks idempotent.
-    if (data) key = `${data.itemId}:${entity === 'schedule' ? data.effectiveDay : data.day ?? 'task'}`;
+    if (data) key = `${data.itemId}:${entity === 'schedule' ? data.effectiveDay : data.day ?? 'task'}${data.poolId ? `:${data.poolId}` : ''}`;
     else {
-      if (typeof c.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}:(?:\d{4}-\d{2}-\d{2}|task)$/.test(c.id)) throw new SyncError('Invalid semantic record ID.');
-      const [item, suffix] = c.id.split(':'); id(item);
+      // A pick row's subtask check adds the pick's pool item: itemId:day:poolId (D59).
+      const pickCheck = entity === 'completion' && typeof c.id === 'string' && /^[a-zA-Z0-9_-]{1,128}:\d{4}-\d{2}-\d{2}:[a-zA-Z0-9_-]{1,128}$/.test(c.id);
+      if (typeof c.id !== 'string' || (!pickCheck && !/^[a-zA-Z0-9_-]{1,128}:(?:\d{4}-\d{2}-\d{2}|task)$/.test(c.id))) throw new SyncError('Invalid semantic record ID.');
+      const [item, suffix, pool] = c.id.split(':'); id(item); if (pool) id(pool);
       if (suffix === 'task' && entity === 'schedule') throw new SyncError('Schedules require an effective day.');
       if (suffix !== 'task') day(suffix);
       key = c.id;

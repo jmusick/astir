@@ -1,5 +1,4 @@
 import { addDays, weekdayOf } from './day';
-import { perDayOn } from './buckets';
 import type { ItemData, ScheduleData } from './types';
 
 // Repeats and the missed setting for daily tasks (D51, D52). Both live in schedule versions, so a
@@ -30,6 +29,13 @@ export function missedOn(kind: ItemData['kind'], sorted: readonly ScheduleData[]
   let missed = defaultMissed(kind);
   for (const version of sorted) { if (version.effectiveDay > day) break; if (version.missed) missed = version.missed; }
   return missed;
+}
+
+/** A bucket's picks a day in the version in effect on a day: 0 when it has no bucket. Null keeps the previous version's. */
+export function perDayOn(sorted: readonly ScheduleData[], day: string): number {
+  let perDay = 0;
+  for (const version of sorted) { if (version.effectiveDay > day) break; if (version.perDay != null) perDay = version.perDay; }
+  return perDay;
 }
 
 /** Whether a daily task has a fresh occurrence on a day from its repeat (not its one-off first day). */

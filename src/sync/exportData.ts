@@ -14,7 +14,7 @@ export interface ExportedDay {
   day: string;
   /** A bucket task appears once per pick, named by `pick` (D70). */
   habits: { id: string; title: string; pick?: string; done: boolean }[];
-  tasks: { id: string; title: string; list?: string }[];
+  tasks: { id: string; title: string; pick?: string; list?: string }[];
   /** One-off tasks dropped unfinished after this day (D70). */
   dropped?: { id: string; title: string }[];
 }
@@ -58,7 +58,7 @@ export function exportData(records: ReadonlyMap<string, SyncRecord>, email: stri
     history.push({
       day,
       habits: view.habits.map(({ item, done, pick }) => ({ id: item.id, title: item.data!.title, ...(pick ? { pick } : {}), done })),
-      tasks: view.tasks.map(({ item, listTitle }) => ({ id: item.id, title: item.data!.title, ...(listTitle ? { list: listTitle } : {}) })),
+      tasks: view.tasks.map(({ item, listTitle, pick }) => ({ id: item.id, title: item.data!.title, ...(pick ? { pick } : {}), ...(listTitle ? { list: listTitle } : {}) })),
       ...(view.dropped.length ? { dropped: view.dropped.map(({ item }) => ({ id: item.id, title: item.data!.title })) } : {}),
     });
   }

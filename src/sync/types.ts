@@ -46,8 +46,13 @@ export interface PoolData { itemId: string; name: string; notes?: string; paused
  * A pool item picked for a day (D61), keyed itemId:day:poolId. `slot` orders the day's picks; an
  * extra comes from "Do another" (D57). `place` is where the owner dragged this row today (D66).
  */
-export interface PickData { itemId: string; day: string; poolId: string; slot: number; extra?: boolean; done?: boolean; skipped?: boolean; place?: number | null }
-export interface CompletionData { itemId: string; day: string | null; completed: boolean }
+export interface PickData {
+  itemId: string; day: string; poolId: string; slot: number; extra?: boolean; done?: boolean; skipped?: boolean; place?: number | null;
+  /** A carried pick's first missed day: a missed pick that rolls over is recorded again each day it's carried (D60). */
+  from?: string | null;
+}
+/** A checkmark. With `poolId`, a subtask checked on one bucket pick's row, keyed itemId:day:poolId (D59). */
+export interface CompletionData { itemId: string; day: string | null; completed: boolean; poolId?: string }
 /** A reminder the user dismissed, so other devices skip it (D42). `reminder` is the time it was for. */
 export interface DismissalData { itemId: string; day: string | null; reminder: string }
 /** The account's day boundary from effectiveDay on: an IANA time zone and a day-start hour (D6, D34). */

@@ -16,6 +16,8 @@ export interface HistoryTask {
   item: SyncRecord<ItemData>;
   /** The named list a task came from; absent for today-only tasks. */
   listTitle?: string;
+  /** A carried bucket pick's item, done this day (D60, D70). */
+  pick?: string;
 }
 
 export interface HistoryDay {
@@ -84,7 +86,7 @@ export function historyDay(records: ReadonlyMap<string, SyncRecord>, day: string
     if ((data.kind === 'habit' || data.kind === 'today') && !data.parentId && repeatsOn(data, sorted, day)
       && presentOn(item, day, dayOf, () => isCompleted(records, habitCompletionId(item.id, day)))) {
       // A bucket task shows each pick by name, done or not (D70).
-      const picks = perDayOn(sorted, day) > 0 ? dayPicks(buckets, item.id, sorted, day, true).picks : [];
+      const picks = perDayOn(sorted, day) > 0 || buckets.pools.has(item.id) ? dayPicks(buckets, item.id, data.kind, sorted, day, { past: true }).picks : [];
       if (picks.length) habits.push(...picks.map(({ pool, record }) => ({ item, done: !!record.data!.done, pick: pool.data!.name })));
       else habits.push({ item, done: isCompleted(records, habitCompletionId(item.id, day)) });
     }
@@ -97,6 +99,10 @@ export function historyDay(records: ReadonlyMap<string, SyncRecord>, day: string
     if ((data.kind === 'habit' || data.kind === 'today') && !data.parentId && anchor && day >= anchor && !repeatsOn(data, sorted, day)) {
       const completion = live<CompletionData>(records, recordKey('completion', habitCompletionId(item.id, day)));
       if (completion?.data?.completed && presentOn(item, day, dayOf, () => true)) tasks.push({ task: { item }, at: completion.editedAt });
+      // Likewise a carried bucket pick done that day; one still waiting isn't shown, as with tasks.
+      for (const { pool, record } of buckets.pools.has(item.id) ? dayPicks(buckets, item.id, data.kind, sorted, day, { scheduled: false, past: true }).picks : []) {
+        if (record.data!.done) tasks.push({ task: { item, pick: pool.data!.name }, at: record.editedAt });
+      }
     }
     if (data.kind === 'habit') continue;
     if (isTopLevelTask(data) && finishedOnDay(records, item, day, dayOf) && presentOn(item, day, dayOf, () => false)) {

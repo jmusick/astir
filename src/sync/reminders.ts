@@ -65,7 +65,7 @@ export function remindersDue(records: ReadonlyMap<string, SyncRecord>, versions:
         if (isCompleted(records, habitCompletionId(item.id, day))) continue;
         // A bucket task's one reminder (D69) is done with once all the day's picks are.
         if (perDayOn(sorted, day) > 0) {
-          const { picks } = dayPicks(buckets, item.id, sorted, day);
+          const { picks } = dayPicks(buckets, item.id, data.kind, sorted, day);
           if (picks.length && picks.every((pick) => pick.record.data!.done)) continue;
         }
         // A repeat merged into a carry doesn't remind again; it already did on the day it was missed (D69).

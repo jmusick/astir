@@ -4,7 +4,7 @@ import { blank, bottomPlace, checkedAt, CLOCK_SLACK_MS, habitCompletionId, isCom
 import type { Entry } from './records';
 import { carryEnds, missedOn, repeatCarry, repeatsOn, sortedVersions, weekdaysOn } from './repeats';
 import type { Missed } from './repeats';
-import { bucketRecords, dayPicks, PER_DAY_MAX, perDayOn } from './buckets';
+import { bucketRecords, dayPicks, PER_DAY_MAX, perDayOn, pickCheckId } from './buckets';
 import type { CompletionData, ItemData, PickData, PoolData, ScheduleData, SyncRecord } from './types';
 
 // The daily list's model: what Today shows, and the full records each edit produces.
@@ -155,14 +155,25 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
   const checkedDays = completedDays(records);
   const buckets = bucketRecords(records);
   const toRecord: SyncRecord[] = [];
-  /** A scheduled day's rows: one per pick when the task has a bucket that day, else the task itself. */
-  const bucketRows = (base: TodayEntry, sorted: readonly ScheduleData[]): TodayEntry[] => {
-    if (perDayOn(sorted, day) === 0) return [base];
-    const { picks, next } = dayPicks(buckets, base.item.id, sorted, day);
-    if (!picks.length) return [{ ...base, bucketEmpty: true }];
-    const rows = picks.map(({ pool, record, fresh }, i): TodayEntry => {
+  /**
+   * A bucket task's rows: one per pick, carried picks included even on a day it isn't scheduled (D60),
+   * or the plain task with a note when its bucket has nothing active (D62). Null when it has neither.
+   */
+  const bucketRows = (base: TodayEntry, sorted: readonly ScheduleData[], scheduled: boolean): TodayEntry[] | null => {
+    const bucketDay = scheduled && perDayOn(sorted, day) > 0;
+    if (!buckets.pools.has(base.item.id)) return bucketDay ? [{ ...base, bucketEmpty: true }] : null;
+    const { picks, next } = dayPicks(buckets, base.item.id, base.item.data!.kind, sorted, day, { scheduled });
+    if (!picks.length) return bucketDay ? [{ ...base, bucketEmpty: true }] : null;
+    const usual = todayPlace(base.item.data!);
+    const checklist = subtasks.get(base.item.id) ?? [];
+    const rows = picks.map(({ pool, record, fresh, carry }, i): TodayEntry => {
       if (fresh) toRecord.push(record);
-      return { ...base, done: !!record.data!.done, sub: i, place: record.data!.place ?? base.place,
+      // A carried pick waits at the top until dragged during this carry (D54, D60).
+      const where = carry ? { carry, overdue: daysBetween(carry, day), dayCount: daysBetween(carry, day) + 1, place: record.data!.place ?? null }
+        : { carry: undefined, overdue: undefined, dayCount: 1, place: record.data!.place ?? usual };
+      return { ...base, ...where, usual, done: !!record.data!.done, sub: i,
+        // Each pick row has its own copy of the task's checklist (D59).
+        subtasks: checklist.map((sub) => ({ ...sub, done: isCompleted(records, pickCheckId(sub.item.id, record)) })), subtaskDay: undefined,
         pick: { record, name: pool.data!.name, notes: pool.data!.notes ?? '', extra: !!record.data!.extra } };
     });
     if (next && picks.every((p) => p.record.data!.done)) rows[rows.length - 1] = { ...rows[rows.length - 1], another: next };
@@ -184,11 +195,13 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
     if (data.kind === 'habit') {
       // A missed repeat set to roll over waits until it's checked, shown once even on its next scheduled day (D53).
       const carry = repeatCarry(data, sorted, days, day);
-      if (!scheduled && !carry) continue;
       const subtaskDay = carry ?? day;
       const base: TodayEntry = { ...placed(data, carry, day), item, source: 'habit', completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)),
         subtasks: checklistOn(records, subtasks.get(item.id), subtaskDay), subtaskDay, ...repeats };
-      entries.push(...(scheduled && !carry ? bucketRows(base, sorted) : [base]));
+      const picked = bucketRows(base, sorted, scheduled);
+      // A carry from before its bucket began still shows as the task itself, so nothing is lost.
+      if (picked) entries.push(...picked, ...(carry ? [base] : []));
+      else if (scheduled || carry) entries.push(base);
       continue;
     }
     const original = data.originalDay;
@@ -212,7 +225,7 @@ export function todayView(records: ReadonlyMap<string, SyncRecord>, day: string,
     const shared = { ...placed(data, carry, day), item, source: 'today' as const, subtasks: checklistOn(records, subtasks.get(item.id), subtaskDay), subtaskDay, ...repeats };
     if (perDay) {
       const base: TodayEntry = { ...shared, completionDay: day, done: isCompleted(records, habitCompletionId(item.id, day)) || (pending && doneHere) };
-      entries.push(...(scheduled && !carry ? bucketRows(base, sorted) : [base]));
+      entries.push(...(!carry && bucketRows(base, sorted, scheduled)) || [base]);
     }
     else entries.push({ ...shared, completionDay: null, done: doneHere });
   }
@@ -238,7 +251,7 @@ export function completedDays(records: ReadonlyMap<string, SyncRecord>): Map<str
   for (const record of records.values()) {
     if (record.entity !== 'completion' || record.deleted || !record.data) continue;
     const data = record.data as CompletionData;
-    if (data.day && data.completed) byItem.set(data.itemId, [...byItem.get(data.itemId) ?? [], data.day]);
+    if (data.day && data.completed && !data.poolId) byItem.set(data.itemId, [...byItem.get(data.itemId) ?? [], data.day]);
   }
   return byItem;
 }
@@ -306,7 +319,10 @@ export function todayBottom(records: ReadonlyMap<string, SyncRecord>, now: numbe
 
 /** Today after a drag (D49): only the moved rows change, each in the field that holds its Today place. */
 export function reorderedToday(entries: readonly TodayEntry[], from: number, to: number): SyncRecord[] {
-  return reorder(entries, (entry) => entry.place, from, to).flatMap(({ item: entry, place }): SyncRecord[] => entry.pick
+  return reorder(entries, (entry) => entry.place, from, to).flatMap(({ item: entry, place }): SyncRecord[] => entry.pick && entry.carry
+    // A carried pick is placed for this carry only, and never moves its task (D54).
+    ? [{ ...entry.pick.record, data: { ...entry.pick.record.data!, place } }]
+    : entry.pick
     // A pick row moves today, and sets its task's usual place so its picks start there tomorrow
     // (D66). The task's other picks today stay put, so they're pinned where they are.
     ? [{ ...entry.pick.record, data: { ...entry.pick.record.data!, place } }, { ...entry.item, data: { ...entry.item.data!, todayPosition: place } },
